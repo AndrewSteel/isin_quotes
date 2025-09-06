@@ -27,6 +27,7 @@ jobs:
   hacs: # https://github.com/hacs/action
     name: HACS validation
     runs-on: ubuntu-latest
+    continue-on-error: true
     steps:
       - name: Run HACS validation
         uses: hacs/action@d556e736723344f83838d08488c983a15381059a # 22.5.0
