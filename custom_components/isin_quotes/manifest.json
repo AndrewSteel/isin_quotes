@@ -2,11 +2,13 @@
   "domain": "isin_quotes",
   "name": "ISIN Quotes",
   "codeowners": [
-    "@ludeeus"
+    "@AndrewSteel"
   ],
   "config_flow": true,
-  "documentation": "https://github.com/ludeeus/isin_quotes",
+  "integration_type": "hub",
+  "documentation": "https://github.com/AndrewSteel/isin_quotes",
   "iot_class": "cloud_polling",
-  "issue_tracker": "https://github.com/ludeeus/isin_quotes/issues",
-  "version": "0.1.0"
+  "issue_tracker": "https://github.com/AndrewSteel/isin_quotes/issues",
+  "version": "0.1.0",
+  "requirements": []
 }

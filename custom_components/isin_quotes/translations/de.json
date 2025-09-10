@@ -1,0 +1,37 @@
+{
+    "config": {
+        "step": {
+            "user": {
+                "title": "ISIN-Kurse",
+                "description": "Gib eine ISIN ein, um verfügbare Handelsplätze abzurufen.",
+                "data": {
+                    "isin": "ISIN"
+                }
+            },
+            "select": {
+                "title": "Handelsplatz & Währung wählen",
+                "description": "Wähle Handelsplatz und Währung und setze das Aktualisierungsintervall.",
+                "data": {
+                    "exchange_code": "Handelsplatz",
+                    "currency_sign": "Währung",
+                    "update_interval": "Aktualisierungsintervall (Sekunden)"
+                }
+            }
+        },
+        "error": {
+            "cannot_connect": "ING-API nicht erreichbar.",
+            "no_exchanges": "Für diese ISIN wurden keine Handelsplätze geliefert.",
+            "invalid_isin": "Bitte eine gültige ISIN eingeben."
+        }
+    },
+    "options": {
+        "step": {
+            "init": {
+                "title": "Einstellungen aktualisieren",
+                "data": {
+                    "update_interval": "Aktualisierungsintervall (Sekunden)"
+                }
+            }
+        }
+    }
+}
