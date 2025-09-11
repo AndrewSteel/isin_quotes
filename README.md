@@ -60,6 +60,49 @@ apex_config:
       format: 'dd.MM HH:mm'
 ```
 
+## Example visualization with Plotly Graph Card
+
+You can also visualize data using the [Plotly Graph Card](https://github.com/dbuezas/lovelace-plotly-graph-card) (installable via HACS). Example YAML:
+
+```yaml
+type: custom:plotly-graph
+entities:
+  - entity: sensor.ie00b5ssqt16_tgt_price
+    name: Price
+hours_to_show: 24
+refresh_interval: 60
+layout:
+  title: 'IE00B5SSQT16 – last 24h'
+  yaxis:
+    tickformat: '.2f'
+  xaxis:
+    type: date
+```
+
+## Example visualization with Plotly Graph Card
+
+The [Plotly Graph Card](https://github.com/dbuezas/lovelace-plotly-graph-card) can also be installed via HACS and used to render interactive charts. Example YAML for a 24h price line:
+
+```yaml
+type: custom:plotly-graph
+title: 'IE00B5SSQT16 – last 24h (Plotly)'
+hours_to_show: 24
+refresh_interval: 60
+entities:
+  - entity: sensor.ie00b5ssqt16_tgt_price   # <- adjust to your entity id
+    name: Price
+layout:
+  xaxis:
+    type: date
+  yaxis:
+    tickformat: .2f
+    title: Price
+traces:
+  - entity: sensor.ie00b5ssqt16_tgt_price
+    name: Price
+    mode: lines
+```
+
 ## Notes
 
 * Market hours for selected exchanges are defined in `market_hours.py` and can be added or modified as needed.
