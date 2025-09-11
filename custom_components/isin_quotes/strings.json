@@ -33,5 +33,29 @@
                 }
             }
         }
+    },
+    "services": {
+        "render_logo": {
+            "name": "Render logo",
+            "description": "Fetch the security logo, render/cache it once to /local/isin_quotes/, and log the local URL.",
+            "fields": {
+                "entry_id": {
+                    "name": "Entry ID",
+                    "description": "Config entry_id of the ISIN Quotes entry (preferred)."
+                },
+                "isin": {
+                    "name": "ISIN",
+                    "description": "ISIN of the target security (used if entry_id is not provided)."
+                },
+                "asset_class": {
+                    "name": "Asset class (EN)",
+                    "description": "Optional. If omitted, it will be derived from additionalMetaInformation."
+                },
+                "size": {
+                    "name": "PNG size",
+                    "description": "PNG edge size (in px) when rendering from Lottie (frame 0)."
+                }
+            }
+        }
     }
 }

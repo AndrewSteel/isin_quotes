@@ -10,6 +10,7 @@ PLATFORMS = ["sensor"]
 BASE_URL = "https://component-api.wertpapiere.ing.de/api/v1/"
 EXCHANGES_EP = "components/exchanges/{isin}"
 INSTRUMENT_HEADER_EP = "components-ng/instrumentheader/{isin}"
+LOGO_EP = "components-ng/logo?isin={isin}&assetClass={asset_class}"
 
 CONF_ISIN = "isin"
 CONF_EXCHANGE_CODE = "exchange_code"
@@ -36,3 +37,19 @@ ATTR_ADDITIONAL_META = "additionalMetaInformation"
 ATTR_SELECTED_CURRENCY = "selectedCurrency"
 ATTR_SELECTED_EXCHANGE = "selectedExchange"
 ATTR_SOURCE = "source"
+
+# Convenience attributes
+ATTR_LOGO_URL = "logo_url"
+ATTR_ENTITY_PICTURE = "entity_picture"
+
+# German → English asset class mapping used for the logo endpoint
+DE2EN_ASSET = {
+    "Devisenkurs": "ExchangeRate",
+    "ETF": "Fund",
+    "Fonds": "Fund",
+    "Rohstoff": "Commodity",
+    "Aktie": "Share",
+    "Anleihe": "Bond",
+    "Zertifikate": "Derivative",
+    "Hebelprodukt": "Derivative",
+}

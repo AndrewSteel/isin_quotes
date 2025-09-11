@@ -34,6 +34,10 @@ After completion, the integration will create multiple sensors per ISIN/exchange
 * Change absolute (with currency or % for bonds)
 * Timestamp of the last price change
 
+## Services
+
+The integration also provides the service `isin_quotes.render_logo`. This service can be called manually to fetch and cache the logo of a configured ISIN. It retrieves the logo from the ING API, renders a static PNG (frame 0 if Lottie JSON is returned) or stores the fallback SVG, and writes the file under `/config/www/isin_quotes/`. The cached file is then available via `/local/isin_quotes/<isin>.png` or `.svg` in Lovelace.
+
 ## Example visualization with ApexCharts Card
 
 You can visualize the 24h history of a sensor using the [ApexCharts Card](https://github.com/RomRider/apexcharts-card) (installable via HACS). Example YAML:

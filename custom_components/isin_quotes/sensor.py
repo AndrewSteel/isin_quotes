@@ -95,6 +95,25 @@ class _BaseIsinEntity(CoordinatorEntity[QuotesCoordinator], SensorEntity):
             ATTR_SOURCE: "ING components-ng/instrumentheader",
         }
 
+    def _asset_class(self) -> Optional[str]:
+        """Map the first additionalMetaInformation value from DE to EN for logo endpoint."""
+        d = self.coordinator.data or {}
+        meta = d.get("additionalMetaInformation") or []
+        if not meta:
+            return None
+        raw = str(meta[0]).strip()
+        de2en = {
+            "Devisenkurs": "ExchangeRate",
+            "ETF": "Fund",
+            "Fonds": "Fund",
+            "Rohstoff": "Commodity",
+            "Aktie": "Share",
+            "Anleihe": "Bond",
+            "Zertifikate": "Derivative",
+            "Hebelprodukt": "Derivative",
+        }
+        return de2en.get(raw, raw)
+
 
 class IsinQuotePriceSensor(_BaseIsinEntity):
     """Main price sensor (state = price)."""

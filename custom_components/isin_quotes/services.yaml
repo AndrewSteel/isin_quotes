@@ -1,0 +1,24 @@
+## services.yaml
+
+render_logo:
+  name: Render logo
+  description: Fetch the security logo (Lottie/JSON or SVG), render/cache it once to /local/isin_quotes/, and log the resulting local URL.
+  fields:
+    entry_id:
+      description: Config entry_id of the ISIN Quotes entry (preferred). If omitted, 'isin' will be used to find the entry.
+      example: 1a2b3c4d5e6f7g8h9i0j
+    isin:
+      description: ISIN of the target security (used to find the entry if entry_id is not provided).
+      example: IE00B5SSQT16
+    asset_class:
+      description: (Optional) Asset class in EN (e.g., Fund, Share). If omitted, it will be derived from additionalMetaInformation.
+      example: Fund
+    size:
+      description: (Optional) PNG size in pixels when rendering from Lottie (frame 0). Defaults to 128.
+      example: 128
+      selector:
+        number:
+          min: 16
+          max: 1024
+          unit_of_measurement: px
+          mode: slider

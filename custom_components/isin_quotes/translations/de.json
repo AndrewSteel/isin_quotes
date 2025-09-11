@@ -33,5 +33,29 @@
                 }
             }
         }
+    },
+    "services": {
+        "render_logo": {
+            "name": "Logo rendern",
+            "description": "Ruft das Wertpapierlogo ab, rendert/cached es einmalig in /local/isin_quotes/ und protokolliert die lokale URL.",
+            "fields": {
+                "entry_id": {
+                    "name": "Entry-ID",
+                    "description": "Config entry_id des ISIN-Quotes-Eintrags (bevorzugt)."
+                },
+                "isin": {
+                    "name": "ISIN",
+                    "description": "ISIN des Zielwertpapiers (wird verwendet, falls keine entry_id angegeben ist)."
+                },
+                "asset_class": {
+                    "name": "Asset-Klasse (EN)",
+                    "description": "Optional. Falls weggelassen, wird sie aus additionalMetaInformation abgeleitet."
+                },
+                "size": {
+                    "name": "PNG-Größe",
+                    "description": "Kantenlänge des PNG (in px) beim Rendern aus Lottie (Frame 0)."
+                }
+            }
+        }
     }
 }
