@@ -1,4 +1,10 @@
-"""Cached logo fetcher and renderer (Lottie, SVG, PNG, JPEG)."""
+"""
+Cached logo fetcher and renderer (Lottie ➜ SVG, Raw SVG).
+
+Only two response forms are supported and the output is **always SVG**:
+- Lottie JSON  -> render frame 0 to **SVG** and return /local/... .svg
+- Raw SVG (<svg) -> store as **.svg** and return /local/... .svg
+"""
 
 from __future__ import annotations
 
@@ -8,9 +14,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from aiohttp import ClientError
-from lottie.exporters import exporters
-from lottie.importers.core import import_lottie
-from PIL import Image
 
 from .const import STORAGE_BASE
 
@@ -23,18 +26,18 @@ _LOGGER = logging.getLogger(__name__)
 HTTP_TIMEOUT_S = 20  # seconds
 
 
-async def ensure_logo_png(
+async def ensure_logo_svg(  # kept name for backward compatibility; returns .svg now
     hass: HomeAssistant,
     session: ClientSession,
     url: str,
     isin: str,
-    size: int = 128,
+    size: int = 128,  # kept for signature compatibility; not used for SVG
 ) -> str | None:
     """
-    Fetch logo once and store it under /config/www/isin_quotes/<isin>.{png,svg}.
+    Fetch logo once and store it under /config/www/isin_quotes/<isin>.svg.
 
-    Supported responses:
-        - Lottie JSON  -> render frame 0 to PNG and return /local/... .png
+    Supported responses (result is always .svg):
+        - Lottie JSON  -> render frame 0 to SVG and return /local/... .svg
         - Raw SVG (<svg) -> store as .svg and return /local/... .svg
 
     Returns:
@@ -44,12 +47,9 @@ async def ensure_logo_png(
     base = Path(hass.config.path("www")) / "isin_quotes"
     base.mkdir(parents=True, exist_ok=True)
 
-    png_path = base / f"{isin}.png"
     svg_path = base / f"{isin}.svg"
 
     # Cache-Hit
-    if png_path.exists():
-        return f"{STORAGE_BASE}/{isin}.png"
     if svg_path.exists():
         return f"{STORAGE_BASE}/{isin}.svg"
 
@@ -62,9 +62,9 @@ async def ensure_logo_png(
         _LOGGER.debug("Logo fetch failed for %s: %s", isin, err, exc_info=True)
         return None
 
-    result: str | None = None  # ein gemeinsamer Rückgabepunkt
+    result: str | None = None  # single exit at the end
 
-    # Fall A: JSON (Lottie oder JSON mit eingebettetem SVG-String)
+    # A) JSON: Lottie or JSON with embedded SVG string
     if "application/json" in ctype or data[:1] in (b"{", b"["):
         obj: dict[str, Any] | list[Any] | None
         try:
@@ -74,43 +74,55 @@ async def ensure_logo_png(
 
         if isinstance(obj, dict) and isinstance(obj.get("svg"), str):
             svg_text = obj["svg"]
-            # Nur schreiben, wenn es wirklich nach SVG aussieht
+            # Write only if it really looks like SVG
             if "<svg" in svg_text:
                 svg_path.write_text(svg_text, encoding="utf-8")
                 result = f"{STORAGE_BASE}/{isin}.svg"
         elif obj is not None:
-            # Lottie JSON -> PNG (frame 0) im Threadpool rendern
+            # Lottie JSON -> SVG (frame 0) in threadpool (pure-Python exporter)
             try:
                 await hass.async_add_executor_job(
-                    _render_lottie_png_sync, obj, png_path, size
+                    _render_lottie_svg_sync, obj, svg_path, size
                 )
-                result = f"{STORAGE_BASE}/{isin}.png"
-            except (OSError, ValueError, KeyError, TypeError) as err:
+                result = f"{STORAGE_BASE}/{isin}.svg"
+            except (OSError, ValueError, KeyError, TypeError, RuntimeError) as err:
                 _LOGGER.debug(
-                    "Lottie render failed for %s: %s", isin, err, exc_info=True
+                    "Lottie SVG render failed for %s: %s", isin, err, exc_info=True
                 )
 
-    # Fall B: rohes SVG (kein JSON, aber Inhalt startet mit <svg)
+    # B) Raw SVG (not JSON, but content starts with <svg)
     elif data.lstrip().startswith(b"<svg"):
         svg_path.write_bytes(data)
         result = f"{STORAGE_BASE}/{isin}.svg"
 
-    # Alle anderen Inhalte ignorieren (keine PNG/JPEG-Unterstützung)
+    # All other content types are ignored by design
     return result
 
 
-def _render_lottie_png_sync(obj: dict[str, Any], png_path: Path, size: int) -> str:
-    """Render Lottie frame 0 to PNG using Pillow renderer."""
-    animation = import_lottie.from_dict(dict(obj))
-    renderer = exporters.pillow.PillowRenderer(
-        animation, frame=0, width=size, height=size
-    )
-    frame_img = renderer.render_frame()
+def _render_lottie_svg_sync(
+    obj: dict[str, Any] | list[Any],
+    svg_path: Path,
+    _size: int,
+) -> str:
+    """
+    Render Lottie frame 0 to **SVG** using the pure-Python SVG exporter.
 
-    if frame_img is None:
-        Image.new("RGBA", (1, 1), (0, 0, 0, 0)).save(png_path, format="PNG")
-        return f"{STORAGE_BASE}/{png_path.name}"
+    Heavy imports are done lazily to avoid slowing down HA startup.
+    """
+    error_str = "svg_exporter_unavailable"
+    # Lazy imports (speed up HA startup and avoid import cost on module load)
+    from lottie import objects
 
-    frame_img = frame_img.convert("RGBA").resize((size, size))
-    frame_img.save(png_path, format="PNG")
-    return f"{STORAGE_BASE}/{png_path.name}"
+    # Try to import SVG exporter lazily; fail gracefully if unavailable.
+    try:
+        from lottie.exporters.svg import export_svg  # type: ignore[import]
+    except Exception as imp_err:
+        raise RuntimeError(error_str) from imp_err
+
+    # Build animation from parsed JSON object
+    animation = objects.Animation.load(obj)
+
+    # Export frame 0 as SVG to the target path
+    export_svg(animation, str(svg_path), frame=0, animated=False)
+
+    return f"{STORAGE_BASE}/{svg_path.name}"

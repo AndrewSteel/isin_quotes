@@ -18,7 +18,7 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .const import BASE_URL, CONF_ISIN, DE2EN_ASSET, DOMAIN, LOGO_EP
 from .coordinator import QuotesCoordinator
-from .logo_cache import ensure_logo_png
+from .logo_cache import ensure_logo_svg
 
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
@@ -90,7 +90,7 @@ async def _prepare_logo_once(
     )
     try:
         session = async_get_clientsession(hass)
-        local_url = await ensure_logo_png(hass, session, url, isin)
+        local_url = await ensure_logo_svg(hass, session, url, isin)
     except (TimeoutError, ClientError) as net_err:
         _LOGGER.debug("Logo preparation: network issue: %s", net_err, exc_info=True)
         return
@@ -100,7 +100,7 @@ async def _prepare_logo_once(
         )
         return
     except ValueError as parse_err:
-        # Falls ensure_logo_png bei ungültigen Inhalten/Status ValueError wirft
+        # Falls ensure_logo_svg bei ungültigen Inhalten/Status ValueError wirft
         _LOGGER.debug(
             "Logo preparation: invalid response/image: %s", parse_err, exc_info=True
         )
@@ -170,7 +170,7 @@ async def _handle_render_logo(hass: HomeAssistant, call: ServiceCall) -> None:
         isin=quote_plus(isin), asset_class=quote_plus(asset_class_en)
     )
     session = async_get_clientsession(hass)
-    local_url = await ensure_logo_png(hass, session, url, isin, size=size)
+    local_url = await ensure_logo_svg(hass, session, url, isin, size=size)
     if local_url:
         _LOGGER.info("render_logo: Prepared %s -> %s", isin, local_url)
     else:
