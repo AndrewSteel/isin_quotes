@@ -1,35 +1,38 @@
+"""Generate sensors for ISIN quotes."""
+
 from __future__ import annotations
-from typing import Any, Dict, Optional
+
 from datetime import datetime
+from typing import Any
 
 from homeassistant.components.sensor import (
-    SensorEntity,
     SensorDeviceClass,
+    SensorEntity,
     SensorStateClass,
 )
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
 
 from .const import (
-    DOMAIN,
-    CONF_ISIN,
-    CONF_EXCHANGE_CODE,
-    CONF_EXCHANGE_NAME,
-    CONF_CURRENCY_SIGN,
-    CONF_CURRENCY_NAME,
-    ATTR_NAME,
-    ATTR_ISIN,
-    ATTR_CURRENCY_SIGN,
-    ATTR_PRICE_CHANGE_DATE,
-    ATTR_EXCHANGE_NAME,
-    ATTR_EXCHANGE_CODE,
     ATTR_ADDITIONAL_META,
+    ATTR_CURRENCY_SIGN,
+    ATTR_EXCHANGE_CODE,
+    ATTR_EXCHANGE_NAME,
+    ATTR_ISIN,
+    ATTR_NAME,
+    ATTR_PRICE_CHANGE_DATE,
     ATTR_SELECTED_CURRENCY,
     ATTR_SELECTED_EXCHANGE,
     ATTR_SOURCE,
+    CONF_CURRENCY_NAME,
+    CONF_CURRENCY_SIGN,
+    CONF_EXCHANGE_CODE,
+    CONF_EXCHANGE_NAME,
+    CONF_ISIN,
+    DOMAIN,
 )
 from .coordinator import QuotesCoordinator
 
@@ -37,6 +40,7 @@ from .coordinator import QuotesCoordinator
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
+    """Set up ISIN quote sensors."""
     coordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
     entities: list[SensorEntity] = [
         IsinQuotePriceSensor(entry, coordinator),
@@ -61,7 +65,7 @@ class _BaseIsinEntity(CoordinatorEntity[QuotesCoordinator], SensorEntity):
         self._currency_sign = entry.data.get(CONF_CURRENCY_SIGN)
         self._currency_name = entry.data.get(CONF_CURRENCY_NAME)
 
-    def _api_currency(self) -> Optional[str]:
+    def _api_currency(self) -> str | None:
         return (self.coordinator.data or {}).get("currencySign") or self._currency_sign
 
     def _is_bond(self) -> bool:
@@ -74,7 +78,7 @@ class _BaseIsinEntity(CoordinatorEntity[QuotesCoordinator], SensorEntity):
         return first == "anleihe"
 
     @property
-    def extra_state_attributes(self) -> Dict[str, Any]:
+    def extra_state_attributes(self) -> dict[str, Any]:
         d = self.coordinator.data or {}
         return {
             ATTR_NAME: d.get("name"),
@@ -95,7 +99,7 @@ class _BaseIsinEntity(CoordinatorEntity[QuotesCoordinator], SensorEntity):
             ATTR_SOURCE: "ING components-ng/instrumentheader",
         }
 
-    def _asset_class(self) -> Optional[str]:
+    def _asset_class(self) -> str | None:
         """Map the first additionalMetaInformation value from DE to EN for logo endpoint."""
         d = self.coordinator.data or {}
         meta = d.get("additionalMetaInformation") or []
@@ -122,17 +126,21 @@ class IsinQuotePriceSensor(_BaseIsinEntity):
 
     def __init__(self, entry: ConfigEntry, coordinator: QuotesCoordinator) -> None:
         super().__init__(entry, coordinator)
-        self._attr_unique_id = f"{self._isin}__{self._exchange_code or 'default'}__price"
+        self._attr_unique_id = (
+            f"{self._isin}__{self._exchange_code or 'default'}__price"
+        )
         self._attr_name = f"{self._isin} ({self._exchange_code or 'default'}) price"
 
     @property
-    def device_class(self) -> Optional[str]:
+    def device_class(self) -> str | None:
+        """State class."""
         # monetary for currencies, None for bonds (percentage price)
         unit = self._api_currency()
         return SensorDeviceClass.MONETARY if unit and unit != "%" else None
 
     @property
     def native_value(self) -> float | None:
+        """State value: the price."""
         d = self.coordinator.data or {}
         v = d.get("price")
         try:
@@ -141,7 +149,8 @@ class IsinQuotePriceSensor(_BaseIsinEntity):
             return None
 
     @property
-    def native_unit_of_measurement(self) -> Optional[str]:
+    def native_unit_of_measurement(self) -> str | None:
+        """Unit of measurement: currency sign or '%' for bonds."""
         return "%" if self._is_bond() else self._api_currency()
 
 
@@ -154,11 +163,14 @@ class IsinQuoteChangePercentSensor(_BaseIsinEntity):
 
     def __init__(self, entry: ConfigEntry, coordinator: QuotesCoordinator) -> None:
         super().__init__(entry, coordinator)
-        self._attr_unique_id = f"{self._isin}__{self._exchange_code or 'default'}__change_pct"
+        self._attr_unique_id = (
+            f"{self._isin}__{self._exchange_code or 'default'}__change_pct"
+        )
         self._attr_name = f"{self._isin} ({self._exchange_code or 'default'}) change %"
 
     @property
     def native_value(self) -> float | None:
+        """State value: the change percent."""
         d = self.coordinator.data or {}
         v = d.get("changePercent")
         try:
@@ -168,7 +180,8 @@ class IsinQuoteChangePercentSensor(_BaseIsinEntity):
 
 
 class IsinQuoteChangeAbsoluteSensor(_BaseIsinEntity):
-    """Change absolute sensor.
+    """
+    Change absolute sensor.
 
     - For currencies → monetary measurement (same unit as price)
     - For bonds (Anleihe) → percentage points ('%')
@@ -179,16 +192,22 @@ class IsinQuoteChangeAbsoluteSensor(_BaseIsinEntity):
 
     def __init__(self, entry: ConfigEntry, coordinator: QuotesCoordinator) -> None:
         super().__init__(entry, coordinator)
-        self._attr_unique_id = f"{self._isin}__{self._exchange_code or 'default'}__change_abs"
-        self._attr_name = f"{self._isin} ({self._exchange_code or 'default'}) change abs"
+        self._attr_unique_id = (
+            f"{self._isin}__{self._exchange_code or 'default'}__change_abs"
+        )
+        self._attr_name = (
+            f"{self._isin} ({self._exchange_code or 'default'}) change abs"
+        )
 
     @property
-    def device_class(self) -> Optional[str]:
+    def device_class(self) -> str | None:
+        """State class."""
         unit = self._api_currency()
         return SensorDeviceClass.MONETARY if unit and unit != "%" else None
 
     @property
     def native_value(self) -> float | None:
+        """State value: the change absolute."""
         d = self.coordinator.data or {}
         v = d.get("changeAbsolute")
         try:
@@ -197,7 +216,8 @@ class IsinQuoteChangeAbsoluteSensor(_BaseIsinEntity):
             return None
 
     @property
-    def native_unit_of_measurement(self) -> Optional[str]:
+    def native_unit_of_measurement(self) -> str | None:
+        """Unit of measurement: currency sign or '%' for bonds."""
         return "%" if self._is_bond() else self._api_currency()
 
 
@@ -214,13 +234,18 @@ class IsinQuoteTimestampSensor(_BaseIsinEntity):
 
     @property
     def native_value(self) -> datetime | None:
+        """State value: the price timestamp as datetime or None."""
         ts = (self.coordinator.data or {}).get("priceChangeDate")
         if not ts:
             return None
 
         # Already a datetime?
         if isinstance(ts, datetime):
-            return ts if ts.tzinfo is not None else ts.replace(tzinfo=dt_util.DEFAULT_TIME_ZONE)
+            return (
+                ts
+                if ts.tzinfo is not None
+                else ts.replace(tzinfo=dt_util.DEFAULT_TIME_ZONE)
+            )
 
         # Epoch seconds/milliseconds
         if isinstance(ts, (int, float)):
@@ -232,7 +257,7 @@ class IsinQuoteTimestampSensor(_BaseIsinEntity):
         if dt is None:
             try:
                 dt = datetime.fromisoformat(str(ts))
-            except Exception:
+            except ValueError:
                 return None
 
         if dt.tzinfo is None:

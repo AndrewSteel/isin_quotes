@@ -19,12 +19,16 @@ CONF_CURRENCY_SIGN = "currency_sign"
 CONF_CURRENCY_NAME = "currency_name"
 CONF_UPDATE_INTERVAL = "update_interval"
 
+ISIN_LENGTH = 12
+
 # User-chosen default polling (seconds) if no market-hour control applies
 DEFAULT_UPDATE_INTERVAL = 60
 
 # Coordinator dynamic intervals when market hours are defined for the selected exchange
-OPEN_UPDATE_INTERVAL = 60       # poll fast when market open
-CLOSED_UPDATE_INTERVAL = 15 * 60  # poll slow when market closed (and skip network fetch)
+OPEN_UPDATE_INTERVAL = 60  # poll fast when market open
+CLOSED_UPDATE_INTERVAL = (
+    15 * 60
+)  # poll slow when market closed (and skip network fetch)
 
 ATTR_NAME = "name"
 ATTR_ISIN = "isin"

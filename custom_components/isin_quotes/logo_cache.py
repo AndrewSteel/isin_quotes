@@ -1,9 +1,13 @@
 from __future__ import annotations
-from typing import Optional
-from pathlib import Path
-import json
 
+import json
 from aiohttp import ClientSession
+from pathlib import Path
+from PIL import Image
+from typing import Optional
+
+from lottie.importers import import_lottie
+from lottie.exporters import exporters
 from homeassistant.core import HomeAssistant
 from homeassistant.util import asyncio as ha_async
 
@@ -72,9 +76,6 @@ async def ensure_logo_png(
 
 def _render_lottie_png_sync(obj, png_path: Path, size: int) -> str:
     """Synchronous part: render Lottie frame 0 to PNG using Pillow renderer."""
-    from lottie.importers import import_lottie
-    from lottie.exporters import exporters
-    from PIL import Image
 
     animation = import_lottie.from_dict(obj)
     renderer = exporters.pillow.PillowRenderer(animation, frame=0, width=size, height=size)

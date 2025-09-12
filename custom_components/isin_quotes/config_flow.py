@@ -1,48 +1,60 @@
+"""Generate config flow for isin_quotes integration."""
+
 from __future__ import annotations
-from typing import Any, Dict, List, Optional
+
+import logging
+from typing import TYPE_CHECKING, Any
 
 import voluptuous as vol
-
 from homeassistant import config_entries
-from homeassistant.data_entry_flow import FlowResult
 from homeassistant.core import callback
 from homeassistant.helpers import aiohttp_client
 from homeassistant.helpers.selector import (
-    SelectSelector,
-    SelectSelectorConfig,
-    SelectSelectorMode,
     NumberSelector,
     NumberSelectorConfig,
     NumberSelectorMode,
+    SelectSelector,
+    SelectSelectorConfig,
+    SelectSelectorMode,
 )
-import logging
-_LOGGER = logging.getLogger(__name__)
 
+from .api_client import IngApiClient, IngApiError
 from .const import (
-    DOMAIN,
-    CONF_ISIN,
+    CONF_CURRENCY_NAME,
+    CONF_CURRENCY_SIGN,
     CONF_EXCHANGE_CODE,
     CONF_EXCHANGE_NAME,
-    CONF_CURRENCY_SIGN,
-    CONF_CURRENCY_NAME,
+    CONF_ISIN,
     CONF_UPDATE_INTERVAL,
     DEFAULT_UPDATE_INTERVAL,
+    DOMAIN,
+    ISIN_LENGTH,
 )
-from .api_client import IngApiClient, IngApiError
+
+if TYPE_CHECKING:
+    from homeassistant.data_entry_flow import FlowResult
+
+_LOGGER = logging.getLogger(__name__)
+
 
 class IsinQuotesConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
+    """Handle a config flow for isin_quotes."""
+
     VERSION = 1
 
     def __init__(self) -> None:
-        self._isin: Optional[str] = None
-        self._items: List[Dict[str, Any]] = []  # from exchanges endpoint
+        self._isin: str | None = None
+        self._items: list[dict[str, Any]] = []  # from exchanges endpoint
 
-    async def async_step_user(self, user_input: Dict[str, Any] | None = None) -> FlowResult:
-        errors: Dict[str, str] = {}
+    async def async_step_user(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Handle the initial step."""
+        errors: dict[str, str] = {}
 
         if user_input is not None:
             isin = user_input.get(CONF_ISIN, "").strip().upper()
-            if not isin or len(isin) < 10:
+            if not isin or len(isin) != ISIN_LENGTH:
                 errors[CONF_ISIN] = "invalid_isin"
             else:
                 session = aiohttp_client.async_get_clientsession(self.hass)
@@ -63,14 +75,16 @@ class IsinQuotesConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         schema = vol.Schema({vol.Required(CONF_ISIN): str})
         return self.async_show_form(step_id="user", data_schema=schema, errors=errors)
 
-    async def async_step_select(self, user_input: Dict[str, Any] | None = None) -> FlowResult:
-        assert self._isin is not None
-        errors: Dict[str, str] = {}
+    async def async_step_select(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Handle exchange/currency selection."""
+        errors: dict[str, str] = {}
 
         # Collect and enrich
-        currencies: Dict[str, str] = {}
-        default_exchange_code: Optional[str] = None
-        enriched: List[Dict[str, Any]] = []
+        currencies: dict[str, str] = {}
+        default_exchange_code: str | None = None
+        enriched: list[dict[str, Any]] = []
         for it in self._items:
             code = str(it.get("exchangeCode") or "")
             name = str(it.get("exchangeName") or "")
@@ -96,7 +110,7 @@ class IsinQuotesConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             )
 
         # Sort: default first, then realtime, then others; then sortOrder; then code
-        def _rank(e: Dict[str, Any]) -> int:
+        def _rank(e: dict[str, Any]) -> int:
             if e["is_default"]:
                 return 0
             if e["is_realtime"]:
@@ -106,7 +120,7 @@ class IsinQuotesConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         enriched.sort(key=lambda e: (_rank(e), e["sort_order"], e["code"]))
 
         # Build dropdown options with BADGES ONLY in the label
-        exchange_options: List[Dict[str, str]] = []
+        exchange_options: list[dict[str, str]] = []
         for e in enriched:
             badges = []
             if e["is_default"]:
@@ -116,9 +130,12 @@ class IsinQuotesConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             base = f"{e['name']} ({e['code']})" if e["name"] else e["code"]
             label = base + (" " + " ".join(badges) if badges else "")
             exchange_options.append({"value": e["code"], "label": label})
-            
+
         currency_options = [
-            {"value": sign, "label": f"{sign} – {name}" if name and name != sign else sign}
+            {
+                "value": sign,
+                "label": f"{sign} – {name}" if name and name != sign else sign,
+            }
             for sign, name in currencies.items()
         ]
 
@@ -126,18 +143,29 @@ class IsinQuotesConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             {
                 vol.Required(
                     CONF_EXCHANGE_CODE,
-                    default=default_exchange_code or (exchange_options[0]["value"] if exchange_options else ""),
+                    default=default_exchange_code
+                    or (exchange_options[0]["value"] if exchange_options else ""),
                 ): SelectSelector(
-                    SelectSelectorConfig(options=exchange_options, mode=SelectSelectorMode.DROPDOWN)
+                    SelectSelectorConfig(
+                        options=exchange_options, mode=SelectSelectorMode.DROPDOWN
+                    )
                 ),
                 vol.Required(
                     CONF_CURRENCY_SIGN,
-                    default=(currency_options[0]["value"] if currency_options else "EUR"),
+                    default=(
+                        currency_options[0]["value"] if currency_options else "EUR"
+                    ),
                 ): SelectSelector(
-                    SelectSelectorConfig(options=currency_options, mode=SelectSelectorMode.DROPDOWN)
+                    SelectSelectorConfig(
+                        options=currency_options, mode=SelectSelectorMode.DROPDOWN
+                    )
                 ),
-                vol.Required(CONF_UPDATE_INTERVAL, default=DEFAULT_UPDATE_INTERVAL): NumberSelector(
-                    NumberSelectorConfig(min=15, max=3600, step=5, mode=NumberSelectorMode.BOX)
+                vol.Required(
+                    CONF_UPDATE_INTERVAL, default=DEFAULT_UPDATE_INTERVAL
+                ): NumberSelector(
+                    NumberSelectorConfig(
+                        min=15, max=3600, step=5, mode=NumberSelectorMode.BOX
+                    )
                 ),
             }
         )
@@ -168,21 +196,32 @@ class IsinQuotesConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             await self.async_set_unique_id(f"{self._isin}__{ex_code}")
             self._abort_if_unique_id_configured()
 
-            return self.async_create_entry(title=f"{self._isin} ({ex_code})", data=data, options=options)
+            return self.async_create_entry(
+                title=f"{self._isin} ({ex_code})", data=data, options=options
+            )
 
         return self.async_show_form(step_id="select", data_schema=schema, errors=errors)
 
     @staticmethod
     @callback
-    def async_get_options_flow(config_entry: config_entries.ConfigEntry) -> config_entries.OptionsFlow:
+    def async_get_options_flow(
+        config_entry: config_entries.ConfigEntry,
+    ) -> config_entries.OptionsFlow:
+        """Handle Time Interval Options flow."""
         return IsinQuotesOptionsFlow(config_entry)
 
+
 class IsinQuotesOptionsFlow(config_entries.OptionsFlow):
+    """Time Interval Options flow for isin_quotes."""
+
     def __init__(self, entry: config_entries.ConfigEntry) -> None:
         self.entry = entry
 
-    async def async_step_init(self, user_input: Dict[str, Any] | None = None) -> FlowResult:
-        errors: Dict[str, str] = {}
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Handle options flow time interval step."""
+        errors: dict[str, str] = {}
         current = self.entry.options
         schema = vol.Schema(
             {
@@ -190,7 +229,9 @@ class IsinQuotesOptionsFlow(config_entries.OptionsFlow):
                     CONF_UPDATE_INTERVAL,
                     default=current.get("update_interval", DEFAULT_UPDATE_INTERVAL),
                 ): NumberSelector(
-                    NumberSelectorConfig(min=15, max=3600, step=5, mode=NumberSelectorMode.BOX)
+                    NumberSelectorConfig(
+                        min=15, max=3600, step=5, mode=NumberSelectorMode.BOX
+                    )
                 )
             }
         )

@@ -1,8 +1,10 @@
-from __future__ import annotations
-from datetime import datetime, timedelta
-from typing import Any, Dict, Optional
-import logging
+"""Coordinate data updates for isin_quotes integration."""
 
+from __future__ import annotations
+
+import logging
+from datetime import datetime, timedelta
+from typing import Any
 from zoneinfo import ZoneInfo
 
 from homeassistant.core import HomeAssistant
@@ -10,21 +12,24 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 
+from .api_client import IngApiClient, IngApiError
 from .const import (
-    DOMAIN,
-    CONF_ISIN,
+    CLOSED_UPDATE_INTERVAL,
     CONF_EXCHANGE_CODE,
+    CONF_ISIN,
     CONF_UPDATE_INTERVAL,
     DEFAULT_UPDATE_INTERVAL,
+    DOMAIN,
     OPEN_UPDATE_INTERVAL,
-    CLOSED_UPDATE_INTERVAL,
 )
-from .api_client import IngApiClient, IngApiError
 from .market_hours import MARKET_HOURS, WEEKDAYS
 
 _LOGGER = logging.getLogger(__name__)
 
-class QuotesCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
+
+class QuotesCoordinator(DataUpdateCoordinator[dict[str, Any]]):
+    """Coordinate quote updates."""
+
     def __init__(self, hass: HomeAssistant, config: dict) -> None:
         self.hass = hass
         self.config = config
@@ -41,10 +46,12 @@ class QuotesCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
         )
 
     def set_update_interval(self, seconds: int) -> None:
+        """Set a new update interval."""
         self.update_interval = timedelta(seconds=int(seconds))
 
-    def _is_market_open(self, exchange_code: Optional[str]) -> Optional[bool]:
-        """Return True/False if hours are known, or None if unknown exchange.
+    def _is_market_open(self, exchange_code: str | None) -> bool | None:
+        """
+        Return True/False if hours are known, or None if unknown exchange.
 
         None → no market-hours entry; coordinator should behave with user interval.
         """
@@ -73,22 +80,26 @@ class QuotesCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
 
         return open_dt <= now_local <= close_dt
 
-    async def _async_update_data(self) -> Dict[str, Any]:
+    async def _async_update_data(self) -> dict[str, Any]:
         isin = self.config[CONF_ISIN]
-        exchange_code: Optional[str] = self.config.get(CONF_EXCHANGE_CODE)
+        exchange_code: str | None = self.config.get(CONF_EXCHANGE_CODE)
 
         market_state = self._is_market_open(exchange_code)
 
         # 1) No market-hours entry → keep user's interval and always fetch normally
         if market_state is None:
             try:
-                data = await self.client.fetch_instrument_header(isin, exchange_code=exchange_code)
+                data = await self.client.fetch_instrument_header(
+                    isin, exchange_code=exchange_code
+                )
             except IngApiError as err_primary:
                 raise UpdateFailed(err_primary) from err_primary
 
             if data and ("price" not in data or data.get("price") is None):
                 try:
-                    data = await self.client.fetch_instrument_header(isin, exchange_code=None)
+                    data = await self.client.fetch_instrument_header(
+                        isin, exchange_code=None
+                    )
                 except IngApiError as err_fallback:
                     raise UpdateFailed(err_fallback) from err_fallback
             return data
@@ -104,7 +115,9 @@ class QuotesCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
                 return self.data
             # First time with no data yet: do a single lightweight fetch (default or selected)
             try:
-                data = await self.client.fetch_instrument_header(isin, exchange_code=exchange_code)
+                data = await self.client.fetch_instrument_header(
+                    isin, exchange_code=exchange_code
+                )
             except IngApiError as err_primary:
                 raise UpdateFailed(err_primary) from err_primary
             # Do not loop more than necessary; keep data and return
@@ -112,13 +125,17 @@ class QuotesCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
 
         # 3) Market open → normal fetch, with fallback to default exchange if needed
         try:
-            data = await self.client.fetch_instrument_header(isin, exchange_code=exchange_code)
+            data = await self.client.fetch_instrument_header(
+                isin, exchange_code=exchange_code
+            )
         except IngApiError as err_primary:
             raise UpdateFailed(err_primary) from err_primary
 
         if data and ("price" not in data or data.get("price") is None):
             try:
-                data = await self.client.fetch_instrument_header(isin, exchange_code=None)
+                data = await self.client.fetch_instrument_header(
+                    isin, exchange_code=None
+                )
             except IngApiError as err_fallback:
                 raise UpdateFailed(err_fallback) from err_fallback
 
