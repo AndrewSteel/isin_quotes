@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any
 
 from aiohttp import ClientError
 from lottie.exporters import exporters
-from lottie.importers import import_lottie
+from lottie.importers.core import import_lottie
 from PIL import Image
 
 from .const import STORAGE_BASE
