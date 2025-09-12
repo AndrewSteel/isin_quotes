@@ -36,7 +36,15 @@ After completion, the integration will create multiple sensors per ISIN/exchange
 
 ## Services
 
-The integration also provides the service `isin_quotes.render_logo`. This service can be called manually to fetch and cache the logo of a configured ISIN. It retrieves the logo from the ING API, renders a static PNG (frame 0 if Lottie JSON is returned) or stores the fallback SVG, and writes the file under `/config/www/isin_quotes/`. The cached file is then available via `/local/isin_quotes/<isin>.png` or `.svg` in Lovelace.
+The integration also provides the service `isin_quotes.render_logo`. This service can be called manually to fetch and cache the logo of a configured ISIN.
+
+### What it does
+
+* Retrieves the logo from the ING API.
+* If the response is **Lottie JSON**, it renders **frame 0 to SVG** (pure Python exporter).
+* If the response is **raw SVG** (starts with `<svg`), it stores it **as‑is**.
+* The file is written to: `/config/www/isin_quotes/`.
+* The cached logo is then available to Lovelace under: `/local/isin_quotes/<isin>.svg`.
 
 ## Example visualization with ApexCharts Card
 
@@ -62,25 +70,6 @@ apex_config:
   tooltip:
     x:
       format: 'dd.MM HH:mm'
-```
-
-## Example visualization with Plotly Graph Card
-
-You can also visualize data using the [Plotly Graph Card](https://github.com/dbuezas/lovelace-plotly-graph-card) (installable via HACS). Example YAML:
-
-```yaml
-type: custom:plotly-graph
-entities:
-  - entity: sensor.ie00b5ssqt16_tgt_price
-    name: Price
-hours_to_show: 24
-refresh_interval: 60
-layout:
-  title: 'IE00B5SSQT16 – last 24h'
-  yaxis:
-    tickformat: '.2f'
-  xaxis:
-    type: date
 ```
 
 ## Example visualization with Plotly Graph Card
