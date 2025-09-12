@@ -69,7 +69,7 @@ class _BaseIsinEntity(CoordinatorEntity[QuotesCoordinator], SensorEntity):
         return (self.coordinator.data or {}).get("currencySign") or self._currency_sign
 
     def _is_bond(self) -> bool:
-        """Detect bonds via additionalMetaInformation[0] == 'Anleihe' or currencySign == '%'."""
+        """Detect bonds via additionalMetaInformation[0]."""
         d = self.coordinator.data or {}
         if (d.get("currencySign") or "").strip() == "%":
             return True
@@ -100,7 +100,7 @@ class _BaseIsinEntity(CoordinatorEntity[QuotesCoordinator], SensorEntity):
         }
 
     def _asset_class(self) -> str | None:
-        """Map the first additionalMetaInformation value from DE to EN for logo endpoint."""
+        """Map the first additionalMetaInformation from DE to EN for logo endpoint."""
         d = self.coordinator.data or {}
         meta = d.get("additionalMetaInformation") or []
         if not meta:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from http import HTTPStatus
 from typing import Any
 
 from aiohttp import ClientError, ClientSession
@@ -47,7 +48,7 @@ class IngApiClient:
         url = BASE_URL + path
         try:
             async with self._session.get(url, timeout=20) as resp:
-                if resp.status != 200:
+                if resp.status != HTTPStatus.OK:
                     text = await resp.text()
                     raise IngApiError(
                         status=resp.status, url=str(resp.url), body_preview=text

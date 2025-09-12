@@ -1,15 +1,27 @@
+"""Cached logo fetcher and renderer (Lottie, SVG, PNG, JPEG)."""
+
 from __future__ import annotations
 
 import json
-from aiohttp import ClientSession
+import logging
 from pathlib import Path
-from PIL import Image
-from typing import Optional
+from typing import TYPE_CHECKING, Any
 
-from lottie.importers import import_lottie
+from aiohttp import ClientError
 from lottie.exporters import exporters
-from homeassistant.core import HomeAssistant
-from homeassistant.util import asyncio as ha_async
+from lottie.importers import import_lottie
+from PIL import Image
+
+from .const import STORAGE_BASE
+
+if TYPE_CHECKING:
+    from aiohttp import ClientSession
+    from homeassistant.core import HomeAssistant
+
+_LOGGER = logging.getLogger(__name__)
+
+HTTP_TIMEOUT_S = 20  # seconds
+
 
 async def ensure_logo_png(
     hass: HomeAssistant,
@@ -17,74 +29,88 @@ async def ensure_logo_png(
     url: str,
     isin: str,
     size: int = 128,
-) -> Optional[str]:
-    """Fetch logo once, store as /config/www/isin_quotes/<isin>.png and return /local/... url.
+) -> str | None:
+    """
+    Fetch logo once and store it under /config/www/isin_quotes/<isin>.{png,svg}.
 
-    Supports Lottie JSON (renders frame 0 to PNG) and JSON with 'svg' (stores .svg as-is).
-    Returns a local /local/... path or None on failure.
+    Supported responses:
+        - Lottie JSON  -> render frame 0 to PNG and return /local/... .png
+        - Raw SVG (<svg) -> store as .svg and return /local/... .svg
+
+    Returns:
+        Local /local/... path on success, else None.
+
     """
     base = Path(hass.config.path("www")) / "isin_quotes"
     base.mkdir(parents=True, exist_ok=True)
 
     png_path = base / f"{isin}.png"
+    svg_path = base / f"{isin}.svg"
+
+    # Cache-Hit
     if png_path.exists():
-        return f"/local/isin_quotes/{isin}.png"
+        return f"{STORAGE_BASE}/{isin}.png"
+    if svg_path.exists():
+        return f"{STORAGE_BASE}/{isin}.svg"
 
     # Download
-    async with session.get(url, timeout=20) as resp:
-        data = await resp.read()
-        ctype = (resp.headers.get("Content-Type") or "").lower()
+    try:
+        async with session.get(url, timeout=HTTP_TIMEOUT_S) as resp:
+            data = await resp.read()
+            ctype = (resp.headers.get("Content-Type") or "").lower()
+    except (TimeoutError, ClientError) as err:
+        _LOGGER.debug("Logo fetch failed for %s: %s", isin, err, exc_info=True)
+        return None
 
-    # JSON: Lottie or JSON with 'svg'
+    result: str | None = None  # ein gemeinsamer Rückgabepunkt
+
+    # Fall A: JSON (Lottie oder JSON mit eingebettetem SVG-String)
     if "application/json" in ctype or data[:1] in (b"{", b"["):
+        obj: dict[str, Any] | list[Any] | None
         try:
             obj = json.loads(data.decode("utf-8"))
-        except Exception:
-            return None
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            obj = None
 
-        # Fallback case: JSON with inline SVG
         if isinstance(obj, dict) and isinstance(obj.get("svg"), str):
-            svg_path = base / f"{isin}.svg"
-            svg_path.write_text(obj["svg"], encoding="utf-8")
-            return f"/local/isin_quotes/{isin}.svg"
+            svg_text = obj["svg"]
+            # Nur schreiben, wenn es wirklich nach SVG aussieht
+            if "<svg" in svg_text:
+                svg_path.write_text(svg_text, encoding="utf-8")
+                result = f"{STORAGE_BASE}/{isin}.svg"
+        elif obj is not None:
+            # Lottie JSON -> PNG (frame 0) im Threadpool rendern
+            try:
+                await hass.async_add_executor_job(
+                    _render_lottie_png_sync, obj, png_path, size
+                )
+                result = f"{STORAGE_BASE}/{isin}.png"
+            except (OSError, ValueError, KeyError, TypeError) as err:
+                _LOGGER.debug(
+                    "Lottie render failed for %s: %s", isin, err, exc_info=True
+                )
 
-        # Lottie JSON → PNG (frame 0)
-        try:
-            return await ha_async.run_callback_threadsafe(
-                hass.loop, _render_lottie_png_sync, obj, png_path, size
-            ).result()
-        except Exception:
-            return None
-
-    # Raw SVG
-    if "image/svg" in ctype or data.strip().startswith(b"<svg"):
-        svg_path = base / f"{isin}.svg"
+    # Fall B: rohes SVG (kein JSON, aber Inhalt startet mit <svg)
+    elif data.lstrip().startswith(b"<svg"):
         svg_path.write_bytes(data)
-        return f"/local/isin_quotes/{isin}.svg"
+        result = f"{STORAGE_BASE}/{isin}.svg"
 
-    # PNG/JPEG direct
-    if "image/png" in ctype or data[:8] == b"PNG":
-        png_path.write_bytes(data)
-        return f"/local/isin_quotes/{isin}.png"
-    if "image/jpeg" in ctype or data[:2] == b"ÿØ":
-        jpg_path = base / f"{isin}.jpg"
-        jpg_path.write_bytes(data)
-        return f"/local/isin_quotes/{isin}.jpg"
-
-    return None
+    # Alle anderen Inhalte ignorieren (keine PNG/JPEG-Unterstützung)
+    return result
 
 
-def _render_lottie_png_sync(obj, png_path: Path, size: int) -> str:
-    """Synchronous part: render Lottie frame 0 to PNG using Pillow renderer."""
-
-    animation = import_lottie.from_dict(obj)
-    renderer = exporters.pillow.PillowRenderer(animation, frame=0, width=size, height=size)
+def _render_lottie_png_sync(obj: dict[str, Any], png_path: Path, size: int) -> str:
+    """Render Lottie frame 0 to PNG using Pillow renderer."""
+    animation = import_lottie.from_dict(dict(obj))
+    renderer = exporters.pillow.PillowRenderer(
+        animation, frame=0, width=size, height=size
+    )
     frame_img = renderer.render_frame()
 
     if frame_img is None:
         Image.new("RGBA", (1, 1), (0, 0, 0, 0)).save(png_path, format="PNG")
-        return f"/local/isin_quotes/{png_path.name}"
+        return f"{STORAGE_BASE}/{png_path.name}"
 
     frame_img = frame_img.convert("RGBA").resize((size, size))
     frame_img.save(png_path, format="PNG")
-    return f"/local/isin_quotes/{png_path.name}"
+    return f"{STORAGE_BASE}/{png_path.name}"

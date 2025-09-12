@@ -7,20 +7,22 @@ https://github.com/AndrewSteel/isin_quotes
 
 from __future__ import annotations
 
-import asyncio
 import logging
+from typing import TYPE_CHECKING
 from urllib.parse import quote_plus
 
 import voluptuous as vol
 from aiohttp import ClientError
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .const import BASE_URL, CONF_ISIN, DE2EN_ASSET, DOMAIN, LOGO_EP
 from .coordinator import QuotesCoordinator
 from .logo_cache import ensure_logo_png
+
+if TYPE_CHECKING:
+    from homeassistant.config_entries import ConfigEntry
+    from homeassistant.core import HomeAssistant, ServiceCall
 
 _LOGGER = logging.getLogger(__name__)
 

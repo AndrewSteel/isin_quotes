@@ -4,10 +4,9 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timedelta
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from zoneinfo import ZoneInfo
 
-from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
@@ -23,6 +22,9 @@ from .const import (
     OPEN_UPDATE_INTERVAL,
 )
 from .market_hours import MARKET_HOURS, WEEKDAYS
+
+if TYPE_CHECKING:
+    from homeassistant.core import HomeAssistant
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -109,7 +111,7 @@ class QuotesCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         if int(self.update_interval.total_seconds()) != int(desired):
             self.set_update_interval(desired)
 
-        # If market closed: avoid hitting API – return last data if we have it
+        # If market closed: avoid hitting API - return last data if we have it
         if market_state is False:
             if self.data is not None:
                 return self.data

@@ -134,7 +134,7 @@ class IsinQuotesConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         currency_options = [
             {
                 "value": sign,
-                "label": f"{sign} – {name}" if name and name != sign else sign,
+                "label": f"{sign} - {name}" if name and name != sign else sign,
             }
             for sign, name in currencies.items()
         ]

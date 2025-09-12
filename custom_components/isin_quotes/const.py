@@ -11,6 +11,7 @@ BASE_URL = "https://component-api.wertpapiere.ing.de/api/v1/"
 EXCHANGES_EP = "components/exchanges/{isin}"
 INSTRUMENT_HEADER_EP = "components-ng/instrumentheader/{isin}"
 LOGO_EP = "components-ng/logo?isin={isin}&assetClass={asset_class}"
+STORAGE_BASE = "/local/isin_quotes"
 
 CONF_ISIN = "isin"
 CONF_EXCHANGE_CODE = "exchange_code"

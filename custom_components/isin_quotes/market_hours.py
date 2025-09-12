@@ -10,8 +10,22 @@ Schema per exchange code (example):
     "TGT": {
         "name": "Direkthandel",
         "tz": "Europe/Berlin",  # IANA timezone for local market time
-        "open":  {"mon":"08:00","tue":"08:00","wed":"08:00","thu":"08:00","fri":"08:00","sat":"","sun":""},
-        "close": {"mon":"22:00","tue":"22:00","wed":"22:00","thu":"22:00","fri":"22:00","sat":"","sun":""},
+        "open":  {
+            "mon":"08:00",
+            "tue":"08:00",
+            "wed":"08:00",
+            "thu":"08:00",
+            "fri":"08:00",
+            "sat":"",
+            "sun":""},
+        "close": {
+            "mon":"22:00",
+            "tue":"22:00",
+            "wed":"22:00",
+            "thu":"22:00",
+            "fri":"22:00",
+            "sat":"",
+            "sun":""},
     },
 }
 """
