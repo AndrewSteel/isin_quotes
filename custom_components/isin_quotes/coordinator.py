@@ -115,7 +115,7 @@ class QuotesCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         if market_state is False:
             if self.data is not None:
                 return self.data
-            # First time with no data yet: do a single lightweight fetch (default or selected)
+            # First time with no data yet
             try:
                 data = await self.client.fetch_instrument_header(
                     isin, exchange_code=exchange_code
