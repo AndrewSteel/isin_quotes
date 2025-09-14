@@ -7,16 +7,27 @@ https://github.com/AndrewSteel/isin_quotes
 
 from __future__ import annotations
 
+import json
 import logging
-from typing import TYPE_CHECKING
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, NamedTuple
 from urllib.parse import quote_plus
 
 import voluptuous as vol
 from aiohttp import ClientError
+from homeassistant.const import EVENT_HOMEASSISTANT_STOP
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-from .const import BASE_URL, CONF_ISIN, DE2EN_ASSET, DOMAIN, LOGO_EP
+from .const import (
+    BASE_URL,
+    CONF_ISIN,
+    DE2EN_ASSET,
+    DOMAIN,
+    HISTORY_SUBDIR,
+    LOGO_EP,
+    STORAGE_BASE,
+)
 from .coordinator import QuotesCoordinator
 from .logo_cache import ensure_logo_svg
 
@@ -27,6 +38,8 @@ if TYPE_CHECKING:
 _LOGGER = logging.getLogger(__name__)
 
 SERVICE_RENDER_LOGO = "render_logo"
+SERVICE_FETCH_HISTORY = "fetch_history"
+
 SCHEMA_RENDER_LOGO = vol.Schema(
     {
         vol.Optional("entry_id"): cv.string,
@@ -37,6 +50,35 @@ SCHEMA_RENDER_LOGO = vol.Schema(
         vol.Optional("size", default=128): vol.All(int, vol.Range(min=16, max=1024)),
     }
 )
+
+SCHEMA_FETCH_HISTORY = vol.Schema(
+    {
+        vol.Required("isin"): cv.string,
+        vol.Required("time_range"): vol.In(
+            [
+                "Intraday",
+                "OneWeek",
+                "OneMonth",
+                "OneYear",
+                "FiveYears",
+                "Maximum",
+            ]
+        ),
+        vol.Required("exchange_id"): vol.Coerce(int),
+        vol.Required("currency_id"): vol.Coerce(int),
+        vol.Optional("ohlc", default=False): cv.boolean,  # Intraday: wird ignoriert
+    }
+)
+
+
+class HistorySpec(NamedTuple):
+    """Specification of a historical data request."""
+
+    isin: str
+    time_range: str
+    exchange_id: int  # ING exchangeId
+    currency_id: int  # ING currencyId
+    ohlc: bool  # True=OHLC, False=line chart
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -51,11 +93,29 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         "coordinator": coordinator,
     }
 
+    # Register services
+    hass.services.async_register(
+        DOMAIN, SERVICE_RENDER_LOGO, _handle_render_logo, schema=SCHEMA_RENDER_LOGO
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_FETCH_HISTORY,
+        _handle_fetch_history,
+        schema=SCHEMA_FETCH_HISTORY,
+    )
+
     # Fire-and-forget: prepare a local logo file once (non-blocking)
     hass.async_create_task(_prepare_logo_once(hass, coordinator, entry))
 
     # Forward the entry to platforms
     await hass.config_entries.async_forward_entry_setups(entry, ["sensor"])
+
+    async def _on_stop(_: Any) -> None:
+        """Cleanup and stop."""
+        _LOGGER.debug("isin_quotes stopped")
+
+    hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, _on_stop)
+
     return True
 
 
@@ -175,3 +235,139 @@ async def _handle_render_logo(hass: HomeAssistant, call: ServiceCall) -> None:
         _LOGGER.info("render_logo: Prepared %s -> %s", isin, local_url)
     else:
         _LOGGER.warning("render_logo: Failed to prepare logo for %s", isin)
+
+
+def _ensure_history_dir(hass: HomeAssistant) -> Path:
+    # STORAGE_BASE URL-Path ("/local/isin_quotes") is filesystem /config/www/isin_quotes
+    www = Path(hass.config.path("www"))
+    target = www / "isin_quotes" / HISTORY_SUBDIR
+    target.mkdir(parents=True, exist_ok=True)
+    return target
+
+
+def _history_filename(spec: HistorySpec) -> str:
+    flag = "ohlc" if spec.ohlc else "line"
+    return (
+        f"{spec.isin}__{spec.exchange_id}_{spec.currency_id}__"
+        f"{spec.time_range}__{flag}__{spec.suffix}.json"
+    )
+
+
+def _today_suffix(time_range: str) -> str:
+    if time_range == "Intraday":
+        return "intraday"
+    return dt_util.now().date().isoformat()
+
+
+def _public_url(filename: str) -> str:
+    return f"{STORAGE_BASE}/{HISTORY_SUBDIR}/{filename}"
+
+
+async def _save_json(hass: HomeAssistant, path: Path, data: dict | list) -> None:
+    txt = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
+    await hass.async_add_executor_job(path.write_text, txt, "utf-8")
+
+
+async def _load_json_if_exists(hass: HomeAssistant, path: Path) -> dict | list | None:
+    if not path.exists():
+        return None
+    try:
+        txt: str = await hass.async_add_executor_job(path.read_text, "utf-8")
+        return json.loads(txt)
+    except Exception as exc:  # noqa: BLE001
+        _LOGGER.debug("Failed to read cached history %s: %s", path, exc)
+        return None
+
+
+async def _handle_fetch_history(hass: HomeAssistant, call: ServiceCall) -> None:
+    """Service: fetch historical data and local storage."""
+    isin = str(call.data["isin"]).strip()
+    time_range = str(call.data["time_range"]).strip()
+    exchange_id = int(call.data["exchange_id"])
+    currency_id = int(call.data["currency_id"])
+    ohlc = bool(call.data.get("ohlc", False))
+
+    # 1) check time range support
+    session = async_get_clientsession(hass)
+    client = QuotesCoordinator(hass, {}).client
+    if client is None:
+        from .api_client import IngApiClient
+
+        client = IngApiClient(session)
+
+    try:
+        meta = await client.fetch_time_ranges(isin)
+    except Exception as exc:  # noqa: BLE001
+        _LOGGER.warning(
+            "fetch_history: failed to query timeRanges for %s: %s", isin, exc
+        )
+        meta = {}
+
+    supported = set((meta or {}).get("timeRanges") or [])
+    if supported and time_range not in supported:
+        _LOGGER.warning(
+            "fetch_history: time_range=%s not in supported %s for %s",
+            time_range,
+            sorted(supported),
+            isin,
+        )
+        return
+
+    # 2) set cache path
+    folder = _ensure_history_dir(hass)
+    suffix = _today_suffix(time_range)
+    filename = _history_filename(
+        isin, time_range, exchange_id, currency_id, ohlc, suffix
+    )
+    path = folder / filename
+
+    use_cache = time_range != "Intraday" and path.exists()
+
+    # 3) get data (cache or fetch)
+    payload: dict | list
+    if use_cache:
+        cached = await _load_json_if_exists(hass, path)
+        if cached is not None:
+            payload = cached
+        else:
+            use_cache = False
+
+    if not use_cache:
+        try:
+            payload = await client.fetch_chart_data(
+                isin=isin,
+                time_range=time_range,
+                exchange_id=exchange_id,
+                currency_id=currency_id,
+                ohlc=(ohlc and time_range != "Intraday"),
+            )
+        except Exception as exc:  # noqa: BLE001
+            _LOGGER.warning(
+                "fetch_history: failed to fetch %s/%s: %s", isin, time_range, exc
+            )
+            return
+        try:
+            await _save_json(hass, path, payload)
+        except Exception as exc:  # noqa: BLE001
+            _LOGGER.warning("fetch_history: failed to save cache %s: %s", path, exc)
+
+    # 4) Public URL & Event
+    public_url = _public_url(filename)
+    hass.bus.async_fire(
+        f"{DOMAIN}/history_fetched",
+        {
+            "isin": isin,
+            "time_range": time_range,
+            "exchange_id": exchange_id,
+            "currency_id": currency_id,
+            "ohlc": bool(ohlc and time_range != "Intraday"),
+            "file_url": public_url,
+        },
+    )
+    _LOGGER.info(
+        "fetch_history: ready for %s %s (ohlc=%s) → %s",
+        isin,
+        time_range,
+        bool(ohlc and time_range != "Intraday"),
+        public_url,
+    )

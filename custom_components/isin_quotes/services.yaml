@@ -22,3 +22,48 @@ render_logo:
           max: 1024
           unit_of_measurement: px
           mode: slider
+
+fetch_history:
+  name: Fetch & cache historical data
+  description: >-
+    Ruft historische Kursdaten von der ING-API ab und speichert sie lokal unter
+    /config/www/isin_quotes/history als JSON. Für Intraday wird immer frisch geladen;
+    für andere Zeiträume tagesweise gecached. Nach Abschluss wird das Event
+    "isin_quotes/history_fetched" mit file_url gefeuert.
+  fields:
+    isin:
+      required: true
+      example: DE000A0D6554
+      selector:
+        text:
+    time_range:
+      required: true
+      example: OneYear
+      selector:
+        select:
+          options:
+            - Intraday
+            - OneWeek
+            - OneMonth
+            - OneYear
+            - FiveYears
+            - Maximum
+    exchange_id:
+      required: true
+      example: 1703
+      selector:
+        number:
+          min: 1
+          mode: box
+    currency_id:
+      required: true
+      example: 814
+      selector:
+        number:
+          min: 1
+          mode: box
+    ohlc:
+      required: false
+      default: false
+      selector:
+        boolean:

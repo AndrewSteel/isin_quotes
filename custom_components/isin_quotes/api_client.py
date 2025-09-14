@@ -8,7 +8,13 @@ from typing import Any
 
 from aiohttp import ClientError, ClientSession
 
-from .const import BASE_URL, EXCHANGES_EP, INSTRUMENT_HEADER_EP
+from .const import (
+    BASE_URL,
+    CHART_DATA_EP,
+    CHART_META_EP,
+    EXCHANGES_EP,
+    INSTRUMENT_HEADER_EP,
+)
 
 
 @dataclass(slots=True)
@@ -69,4 +75,28 @@ class IngApiClient:
         path = INSTRUMENT_HEADER_EP.format(isin=isin)
         if exchange_code:
             path += f"?exchangeCode={exchange_code}"
+        return await self._get_json(path)
+
+    async def fetch_time_ranges(self, isin: str) -> dict[str, Any]:
+        """Fetch available chart time ranges for the given ISIN."""
+        path = CHART_META_EP.format(isin=isin)
+        return await self._get_json(path)  # type: ignore[return-value]
+
+    async def fetch_chart_data(
+        self,
+        isin: str,
+        time_range: str,
+        exchange_id: int,
+        currency_id: int,
+        ohlc: bool = False,
+    ) -> dict[str, Any] | list[Any]:
+        """Fetch chart data for the given ISIN and parameters."""
+        ohlc_part = "&ohlc=true" if ohlc else "&ohlc=false"
+        path = CHART_DATA_EP.format(
+            isin=isin,
+            time_range=time_range,
+            exchange_id=int(exchange_id),
+            currency_id=int(currency_id),
+            ohlc_part=ohlc_part,
+        )
         return await self._get_json(path)

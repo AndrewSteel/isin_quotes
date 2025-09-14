@@ -11,7 +11,14 @@ BASE_URL = "https://component-api.wertpapiere.ing.de/api/v1/"
 EXCHANGES_EP = "components/exchanges/{isin}"
 INSTRUMENT_HEADER_EP = "components-ng/instrumentheader/{isin}"
 LOGO_EP = "components-ng/logo?isin={isin}&assetClass={asset_class}"
+CHART_META_EP = "components-ng/chart/{isin}"  # liefert u.a. timeRanges
+CHART_DATA_EP = (
+    "components/charttooldata/{isin}?timeRange={time_range}"
+    "&exchangeId={exchange_id}&currencyId={currency_id}{ohlc_part}"
+)
+
 STORAGE_BASE = "/local/isin_quotes"
+HISTORY_SUBDIR = "history"
 
 CONF_ISIN = "isin"
 CONF_EXCHANGE_CODE = "exchange_code"
