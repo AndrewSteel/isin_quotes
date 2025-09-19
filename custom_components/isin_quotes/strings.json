@@ -52,8 +52,34 @@
                     "description": "Optional. If omitted, it will be derived from additionalMetaInformation."
                 },
                 "size": {
-                    "name": "PNG size",
-                    "description": "PNG edge size (in px) when rendering from Lottie (frame 0)."
+                    "name": "SVG size",
+                    "description": "SVG size (in px)."
+                }
+            }
+        },
+        "fetch_history": {
+            "name": "Fetch & cache historical data",
+            "description": "Fetch historical chart data from ING and store a JSON under /config/www/isin_quotes/history. Intraday is always fetched fresh; other ranges are cached per day.",
+            "fields": {
+                "isin": {
+                    "name": "ISIN",
+                    "description": "ISIN to fetch the history for."
+                },
+                "time_range": {
+                    "name": "Time range",
+                    "description": "One of Intraday, OneWeek, OneMonth, OneYear, FiveYears, Maximum."
+                },
+                "exchange_id": {
+                    "name": "Exchange ID",
+                    "description": "Numeric exchangeId as required by the ING endpoint."
+                },
+                "currency_id": {
+                    "name": "Currency ID",
+                    "description": "Numeric currencyId as required by the ING endpoint."
+                },
+                "ohlc": {
+                    "name": "OHLC mode",
+                    "description": "If true, fetch x,open,high,low,close (not available for Intraday)."
                 }
             }
         }

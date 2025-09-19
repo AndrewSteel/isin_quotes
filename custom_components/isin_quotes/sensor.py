@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+from collections.abc import Iterable, Mapping
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
@@ -10,6 +12,7 @@ from homeassistant.components.sensor import (
     SensorEntity,
     SensorStateClass,
 )
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
 
@@ -34,9 +37,13 @@ from .const import (
 from .coordinator import QuotesCoordinator
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable, Mapping
+
     from homeassistant.config_entries import ConfigEntry
     from homeassistant.core import HomeAssistant
     from homeassistant.helpers.entity_platform import AddEntitiesCallback
+
+_LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup_entry(
@@ -52,6 +59,29 @@ async def async_setup_entry(
     ]
     async_add_entities(entities)
 
+    reg = er.async_get(hass)
+    target_unique = "isin_quotes__history"
+    target_entity_id_prefix = "sensor.isin_quotes_history"
+
+    # Iterate all entities in the registry
+    for ent in list(reg.entities.values()):
+        # Only consider sensor entities of this integration
+        if ent.domain != "sensor" or ent.platform != DOMAIN:
+            continue
+        if not ent.entity_id.startswith(target_entity_id_prefix):
+            continue
+        # remove old taget_unique entities
+        if ent.unique_id != target_unique:
+            reg.async_remove(ent.entity_id)
+
+    global_hist = hass.data[DOMAIN].get("global_history_entity")
+    if global_hist is None:
+        global_hist = GlobalIsinQuotesHistorySensor()
+        async_add_entities([global_hist])
+        hass.data[DOMAIN]["global_history_entity"] = global_hist
+
+    hass.data[DOMAIN][entry.entry_id]["history_entity"] = global_hist
+
 
 class _BaseIsinEntity(CoordinatorEntity[QuotesCoordinator], SensorEntity):
     """Shared base for ISIN sensors."""
@@ -66,6 +96,53 @@ class _BaseIsinEntity(CoordinatorEntity[QuotesCoordinator], SensorEntity):
         self._exchange_name = entry.data.get(CONF_EXCHANGE_NAME)
         self._currency_sign = entry.data.get(CONF_CURRENCY_SIGN)
         self._currency_name = entry.data.get(CONF_CURRENCY_NAME)
+        # exchanges kann in entry fehlen - versuche Coordinator, sonst leere Liste
+        exchanges = entry.data.get("exchanges")
+        if not exchanges:
+            # coordinator.data kann beim ersten Start ebenfalls leer sein – daher "or []"
+            exchanges = (getattr(coordinator, "data", None) or {}).get(
+                "exchanges"
+            ) or []
+
+        # Hilfsfunktion für sichere Suche
+        def find_first(
+            items: Iterable[Mapping[str, Any]],
+            match_key: str,
+            match_value: Any,
+            return_key: str,
+        ) -> str | None:
+            for it in items:
+                if it.get(match_key) == match_value:
+                    return it.get(return_key)
+            return None
+
+        # Nur suchen, wenn Schlüssel vorhanden - sonst bleibt None
+        self._currency_id = (
+            find_first(exchanges, "currencySymbol", self._currency_sign, "currencyId")
+            if self._currency_sign
+            else None
+        )
+        self._exchange_id = (
+            find_first(exchanges, "exchangeCode", self._exchange_code, "exchangeId")
+            if self._exchange_code
+            else None
+        )
+
+        # Optional: Loggen, falls nicht gefunden – hilft beim Debuggen in HA
+        if self._exchange_code and self._exchange_id is None:
+            _LOGGER.debug(
+                "No exchangeId found for exchangeCode=%s (isin=%s). Exchanges present: %s",
+                self._exchange_code,
+                self._isin,
+                [e.get("exchangeCode") for e in exchanges],
+            )
+        if self._currency_sign and self._currency_id is None:
+            _LOGGER.debug(
+                "No currencyId found for currencySymbol=%s (isin=%s). Symbols present: %s",
+                self._currency_sign,
+                self._isin,
+                [e.get("currencySymbol") for e in exchanges],
+            )
 
     def _api_currency(self) -> str | None:
         return (self.coordinator.data or {}).get("currencySign") or self._currency_sign
@@ -91,10 +168,12 @@ class _BaseIsinEntity(CoordinatorEntity[QuotesCoordinator], SensorEntity):
             ATTR_EXCHANGE_CODE: d.get("exchangeCode"),
             ATTR_ADDITIONAL_META: d.get("additionalMetaInformation"),
             ATTR_SELECTED_CURRENCY: {
+                "id": self._currency_id,
                 "sign": self._currency_sign,
                 "name": self._currency_name,
             },
             ATTR_SELECTED_EXCHANGE: {
+                "id": self._exchange_id,
                 "code": self._exchange_code,
                 "name": self._exchange_name,
             },
@@ -120,6 +199,16 @@ class _BaseIsinEntity(CoordinatorEntity[QuotesCoordinator], SensorEntity):
         }
         return de2en.get(raw, raw)
 
+    @property
+    def device_info(self) -> dict:
+        """Information about the device."""
+        return {
+            "identifiers": {(DOMAIN, self.entry.entry_id)},
+            "name": f"{self._isin} ({self._exchange_code or 'default'})",
+            "manufacturer": "isin_quotes",
+            "model": "ING instrument",
+        }
+
 
 class IsinQuotePriceSensor(_BaseIsinEntity):
     """Main price sensor (state = price)."""
@@ -131,14 +220,12 @@ class IsinQuotePriceSensor(_BaseIsinEntity):
         self._attr_unique_id = (
             f"{self._isin}__{self._exchange_code or 'default'}__price"
         )
-        self._attr_name = f"{self._isin} ({self._exchange_code or 'default'}) price"
+        self._attr_name = "price"
 
     @property
     def device_class(self) -> str | None:
         """State class."""
-        # monetary for currencies, None for bonds (percentage price)
-        unit = self._api_currency()
-        return SensorDeviceClass.MONETARY if unit and unit != "%" else None
+        return None
 
     @property
     def native_value(self) -> float | None:
@@ -168,7 +255,7 @@ class IsinQuoteChangePercentSensor(_BaseIsinEntity):
         self._attr_unique_id = (
             f"{self._isin}__{self._exchange_code or 'default'}__change_pct"
         )
-        self._attr_name = f"{self._isin} ({self._exchange_code or 'default'}) change %"
+        self._attr_name = "change %"
 
     @property
     def native_value(self) -> float | None:
@@ -197,15 +284,12 @@ class IsinQuoteChangeAbsoluteSensor(_BaseIsinEntity):
         self._attr_unique_id = (
             f"{self._isin}__{self._exchange_code or 'default'}__change_abs"
         )
-        self._attr_name = (
-            f"{self._isin} ({self._exchange_code or 'default'}) change abs"
-        )
+        self._attr_name = "change abs"
 
     @property
     def device_class(self) -> str | None:
         """State class."""
-        unit = self._api_currency()
-        return SensorDeviceClass.MONETARY if unit and unit != "%" else None
+        return None
 
     @property
     def native_value(self) -> float | None:
@@ -232,7 +316,7 @@ class IsinQuoteTimestampSensor(_BaseIsinEntity):
     def __init__(self, entry: ConfigEntry, coordinator: QuotesCoordinator) -> None:
         super().__init__(entry, coordinator)
         self._attr_unique_id = f"{self._isin}__{self._exchange_code or 'default'}__ts"
-        self._attr_name = f"{self._isin} ({self._exchange_code or 'default'}) timestamp"
+        self._attr_name = "timestamp"
 
     @property
     def native_value(self) -> datetime | None:
@@ -265,3 +349,47 @@ class IsinQuoteTimestampSensor(_BaseIsinEntity):
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=dt_util.DEFAULT_TIME_ZONE)
         return dt
+
+
+class GlobalIsinQuotesHistorySensor(SensorEntity):
+    """Global history payload holder shared across all entries."""
+
+    _attr_unique_id = "isin_quotes__history"
+    _attr_name = "ISIN Quotes History"
+    _attr_has_entity_name = True
+    _attr_icon = "mdi:chart-line"
+    _attr_native_value = 0
+
+    def __init__(self) -> None:
+        """Initialize the history sensor."""
+        self._payload: dict | list | None = None
+
+    @property
+    def state_class(self) -> SensorStateClass | None:
+        """State class."""
+        return SensorStateClass.MEASUREMENT
+
+    def set_payload(self, payload: dict | list | None) -> None:
+        """Set the payload."""
+        self._payload = payload
+        length = 0
+        if isinstance(payload, dict):
+            instruments = payload.get("instruments")
+            if isinstance(instruments, list) and instruments:
+                inst0 = instruments[0]
+                if isinstance(inst0, dict):
+                    data = inst0.get("data")
+                    if isinstance(data, list):
+                        length = len(data)
+        self._attr_native_value = length
+        self.async_write_ha_state()
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        """Return the state attributes."""
+        return self._payload if isinstance(self._payload, dict) else None
+
+    @property
+    def device_info(self) -> dict | None:
+        """Information about the device."""
+        return None

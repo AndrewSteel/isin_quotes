@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, NamedTuple
+from typing import TYPE_CHECKING, Any, Literal, NamedTuple, TypedDict
 from urllib.parse import quote_plus
 
 import voluptuous as vol
@@ -18,6 +18,7 @@ from aiohttp import ClientError
 from homeassistant.const import EVENT_HOMEASSISTANT_STOP
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.util import dt as dt_util
 
 from .const import (
     BASE_URL,
@@ -34,6 +35,8 @@ from .logo_cache import ensure_logo_svg
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
     from homeassistant.core import HomeAssistant, ServiceCall
+
+    from .sensor import GlobalIsinQuotesHistorySensor
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -66,7 +69,7 @@ SCHEMA_FETCH_HISTORY = vol.Schema(
         ),
         vol.Required("exchange_id"): vol.Coerce(int),
         vol.Required("currency_id"): vol.Coerce(int),
-        vol.Optional("ohlc", default=False): cv.boolean,  # Intraday: wird ignoriert
+        vol.Optional("ohlc", default=False): cv.boolean,
     }
 )
 
@@ -76,9 +79,37 @@ class HistorySpec(NamedTuple):
 
     isin: str
     time_range: str
-    exchange_id: int  # ING exchangeId
-    currency_id: int  # ING currencyId
-    ohlc: bool  # True=OHLC, False=line chart
+    exchange_id: int
+    currency_id: int
+    ohlc: bool
+
+
+class HistoryMeta(TypedDict):
+    """Specification of the meta information in the sensor payload."""
+
+    isin: str
+    time_range: str
+    exchange_id: int
+    currency_id: int
+    ohlc: bool
+    file_url: str
+    source: Literal["cache", "live"]  # setzten wir im Code
+    updated_at: str  # ISO-String
+
+
+class SensorPayload(TypedDict):
+    """Specification of the sensor payload."""
+
+    instruments: list[Any]
+    meta: HistoryMeta
+
+
+def _history_filename(spec: HistorySpec) -> str:
+    flag = "ohlc" if spec.ohlc else "line"
+    return (
+        f"{spec.isin}__{spec.exchange_id}_{spec.currency_id}__"
+        f"{spec.time_range}__{flag}.json"
+    )
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -91,6 +122,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
         "coordinator": coordinator,
+        "history_entity": None,
     }
 
     # Register services
@@ -169,12 +201,13 @@ async def _prepare_logo_once(
         _LOGGER.debug("Logo prepared for %s: %s", isin, local_url)
 
 
-async def _handle_render_logo(hass: HomeAssistant, call: ServiceCall) -> None:
+async def _handle_render_logo(call: ServiceCall) -> None:
     """
     Service handler for isin_quotes.render_logo.
 
     Accepts either entry_id or isin; optional asset_class (EN) and size.
     """
+    hass = call.hass
     entry_id: str | None = call.data.get("entry_id")
     isin: str | None = call.data.get("isin")
     asset_class_en: str | None = call.data.get("asset_class")
@@ -245,20 +278,6 @@ def _ensure_history_dir(hass: HomeAssistant) -> Path:
     return target
 
 
-def _history_filename(spec: HistorySpec) -> str:
-    flag = "ohlc" if spec.ohlc else "line"
-    return (
-        f"{spec.isin}__{spec.exchange_id}_{spec.currency_id}__"
-        f"{spec.time_range}__{flag}__{spec.suffix}.json"
-    )
-
-
-def _today_suffix(time_range: str) -> str:
-    if time_range == "Intraday":
-        return "intraday"
-    return dt_util.now().date().isoformat()
-
-
 def _public_url(filename: str) -> str:
     return f"{STORAGE_BASE}/{HISTORY_SUBDIR}/{filename}"
 
@@ -274,85 +293,130 @@ async def _load_json_if_exists(hass: HomeAssistant, path: Path) -> dict | list |
     try:
         txt: str = await hass.async_add_executor_job(path.read_text, "utf-8")
         return json.loads(txt)
-    except Exception as exc:  # noqa: BLE001
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
         _LOGGER.debug("Failed to read cached history %s: %s", path, exc)
         return None
 
 
-async def _handle_fetch_history(hass: HomeAssistant, call: ServiceCall) -> None:
+async def _handle_fetch_history(call: ServiceCall) -> None:
     """Service: fetch historical data and local storage."""
+    hass = call.hass
     isin = str(call.data["isin"]).strip()
     time_range = str(call.data["time_range"]).strip()
     exchange_id = int(call.data["exchange_id"])
     currency_id = int(call.data["currency_id"])
-    ohlc = bool(call.data.get("ohlc", False))
+    # Intraday has no OHLC-data
+    ohlc_req = bool(call.data.get("ohlc", False))
+    ohlc = ohlc_req and time_range != "Intraday"
 
-    # 1) check time range support
-    session = async_get_clientsession(hass)
-    client = QuotesCoordinator(hass, {}).client
-    if client is None:
-        from .api_client import IngApiClient
+    def _find_history_entity() -> GlobalIsinQuotesHistorySensor | None:
+        """Find the first registered history_entity, if any."""
+        return next(
+            (
+                store.get("history_entity")
+                for store in (hass.data.get(DOMAIN) or {}).values()
+                if store.get("history_entity")
+            ),
+            None,
+        )
 
-        client = IngApiClient(session)
+    def _make_sensor_payload(data_obj: object, meta_dict: HistoryMeta) -> SensorPayload:
+        """Create the sensor payload from fetched data + Meta."""
+        instruments_raw: object | None = (
+            data_obj.get("instruments") if isinstance(data_obj, dict) else None
+        )
+        instruments: list[Any] = (
+            instruments_raw if isinstance(instruments_raw, list) else []
+        )
+        return {"instruments": instruments, "meta": meta_dict}
+
+    from .api_client import IngApiClient, IngApiError
+
+    client = IngApiClient(async_get_clientsession(hass))
+
+    spec = HistorySpec(isin, time_range, exchange_id, currency_id, ohlc)
+    filename = _history_filename(spec)
+    path = _ensure_history_dir(hass) / filename
+    file_url = f"{STORAGE_BASE}/{HISTORY_SUBDIR}/{filename}"
+
+    # Rehydrate: load file in sensor if exists
+    cached = await _load_json_if_exists(hass, path)
+    hist = _find_history_entity()
+    setter = getattr(hist, "set_payload", None)
 
     try:
-        meta = await client.fetch_time_ranges(isin)
-    except Exception as exc:  # noqa: BLE001
-        _LOGGER.warning(
-            "fetch_history: failed to query timeRanges for %s: %s", isin, exc
+        payload = await client.fetch_chart_data(
+            isin=isin,
+            time_range=time_range,
+            exchange_id=exchange_id,
+            currency_id=currency_id,
+            ohlc=ohlc,
         )
-        meta = {}
-
-    supported = set((meta or {}).get("timeRanges") or [])
-    if supported and time_range not in supported:
+    except IngApiError as api_err:
         _LOGGER.warning(
-            "fetch_history: time_range=%s not in supported %s for %s",
-            time_range,
-            sorted(supported),
-            isin,
+            "fetch_history: ING API error for %s/%s: %s", isin, time_range, api_err
         )
+        if cached is not None and callable(setter):
+            setter(
+                _make_sensor_payload(
+                    cached,
+                    {
+                        "isin": isin,
+                        "time_range": time_range,
+                        "exchange_id": exchange_id,
+                        "currency_id": currency_id,
+                        "ohlc": ohlc,
+                        "file_url": file_url,
+                        "source": "live",
+                        "updated_at": dt_util.utcnow().isoformat(),
+                    },
+                )
+            )
+        return
+    except (TimeoutError, ClientError) as net_err:
+        _LOGGER.warning(
+            "fetch_history: network error for %s/%s: %s", isin, time_range, net_err
+        )
+        if cached is not None and callable(setter):
+            setter(
+                _make_sensor_payload(
+                    cached,
+                    {
+                        "isin": isin,
+                        "time_range": time_range,
+                        "exchange_id": exchange_id,
+                        "currency_id": currency_id,
+                        "ohlc": ohlc,
+                        "file_url": file_url,
+                        "source": "live",
+                        "updated_at": dt_util.utcnow().isoformat(),
+                    },
+                )
+            )
         return
 
-    # 2) set cache path
-    folder = _ensure_history_dir(hass)
-    suffix = _today_suffix(time_range)
-    filename = _history_filename(
-        isin, time_range, exchange_id, currency_id, ohlc, suffix
-    )
-    path = folder / filename
+    try:
+        await _save_json(hass, path, payload)
+    except OSError as fs_err:
+        _LOGGER.warning("fetch_history: save failed %s: %s", path, fs_err)
 
-    use_cache = time_range != "Intraday" and path.exists()
-
-    # 3) get data (cache or fetch)
-    payload: dict | list
-    if use_cache:
-        cached = await _load_json_if_exists(hass, path)
-        if cached is not None:
-            payload = cached
-        else:
-            use_cache = False
-
-    if not use_cache:
-        try:
-            payload = await client.fetch_chart_data(
-                isin=isin,
-                time_range=time_range,
-                exchange_id=exchange_id,
-                currency_id=currency_id,
-                ohlc=(ohlc and time_range != "Intraday"),
+    if callable(setter):
+        setter(
+            _make_sensor_payload(
+                payload,
+                {
+                    "isin": isin,
+                    "time_range": time_range,
+                    "exchange_id": exchange_id,
+                    "currency_id": currency_id,
+                    "ohlc": ohlc,
+                    "file_url": file_url,
+                    "source": "live",
+                    "updated_at": dt_util.utcnow().isoformat(),
+                },
             )
-        except Exception as exc:  # noqa: BLE001
-            _LOGGER.warning(
-                "fetch_history: failed to fetch %s/%s: %s", isin, time_range, exc
-            )
-            return
-        try:
-            await _save_json(hass, path, payload)
-        except Exception as exc:  # noqa: BLE001
-            _LOGGER.warning("fetch_history: failed to save cache %s: %s", path, exc)
+        )
 
-    # 4) Public URL & Event
-    public_url = _public_url(filename)
     hass.bus.async_fire(
         f"{DOMAIN}/history_fetched",
         {
@@ -360,14 +424,14 @@ async def _handle_fetch_history(hass: HomeAssistant, call: ServiceCall) -> None:
             "time_range": time_range,
             "exchange_id": exchange_id,
             "currency_id": currency_id,
-            "ohlc": bool(ohlc and time_range != "Intraday"),
-            "file_url": public_url,
+            "ohlc": ohlc,
+            "file_url": file_url,
         },
     )
     _LOGGER.info(
         "fetch_history: ready for %s %s (ohlc=%s) → %s",
         isin,
         time_range,
-        bool(ohlc and time_range != "Intraday"),
-        public_url,
+        ohlc,
+        _public_url(filename),
     )

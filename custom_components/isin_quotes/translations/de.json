@@ -52,8 +52,34 @@
                     "description": "Optional. Falls weggelassen, wird sie aus additionalMetaInformation abgeleitet."
                 },
                 "size": {
-                    "name": "PNG-Größe",
-                    "description": "Kantenlänge des PNG (in px) beim Rendern aus Lottie (Frame 0)."
+                    "name": "SVG-Größe",
+                    "description": "Größe des SVG (in px)."
+                }
+            }
+        },
+        "fetch_history": {
+            "name": "Historische Daten abrufen & cachen",
+            "description": "Ruft historische Kursdaten von ING ab und speichert sie als JSON unter /config/www/isin_quotes/history. Intraday wird immer frisch geladen; andere Zeiträume täglich gecacht.",
+            "fields": {
+                "isin": {
+                    "name": "ISIN",
+                    "description": "ISIN, für die die Historie geladen werden soll."
+                },
+                "time_range": {
+                    "name": "Zeitraum",
+                    "description": "Einer von Intraday, OneWeek, OneMonth, OneYear, FiveYears, Maximum."
+                    },
+                "exchange_id": {
+                    "name": "Exchange-ID",
+                    "description": "Numerische exchangeId laut ING-Endpunkt."
+                },
+                "currency_id": {
+                    "name": "Währungs-ID",
+                    "description": "Numerische currencyId laut ING-Endpunkt."
+                },
+                "ohlc": {
+                    "name": "OHLC-Modus",
+                    "description": "Wenn true, werden x,open,high,low,close geladen (nicht für Intraday verfügbar)."
                 }
             }
         }

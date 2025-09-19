@@ -88,7 +88,7 @@ class IngApiClient:
         time_range: str,
         exchange_id: int,
         currency_id: int,
-        ohlc: bool = False,
+        ohlc: bool = False,  # noqa: FBT001,FBT002
     ) -> dict[str, Any] | list[Any]:
         """Fetch chart data for the given ISIN and parameters."""
         ohlc_part = "&ohlc=true" if ohlc else "&ohlc=false"

@@ -1,0 +1,518 @@
+views:
+  - title: Home
+    sections:
+      - type: grid
+        cards:
+          - type: heading
+            heading: Apexcharts-Card
+            heading_style: title
+            grid_options:
+              columns: 12
+              rows: 1
+          - type: heading
+            heading_style: title
+            heading: Plotly-Card
+            grid_options:
+              columns: 12
+              rows: 1
+          - type: custom:apexcharts-card
+            graph_span: 24h
+            update_interval: 60s
+            header:
+              show: true
+              title: iShares Core MSCI World – letzte 24h
+            series:
+              - entity: sensor.ie00b4l5y983_tgt_price
+                name: Preis
+                type: line
+                group_by:
+                  duration: 5m
+                  func: last
+            apex_config:
+              yaxis:
+                decimalsInFloat: 2
+              tooltip:
+                x:
+                  format: dd.MM HH:mm
+          - type: custom:plotly-graph
+            title: HSBC MSCI Emerging Markets – last 24h
+            hours_to_show: 24
+            refresh_interval: 60
+            entities:
+              - entity: sensor.ie00b5ssqt16_tgt_price
+                name: Price
+            layout:
+              xaxis:
+                type: date
+              yaxis:
+                tickformat: .2f
+                title: Price
+            traces:
+              - entity: sensor.ie00b5ssqt16_tgt_price
+                name: Price
+                mode: lines
+        column_span: 2
+      - type: grid
+        cards:
+          - type: heading
+            icon: mdi:fridge
+            heading: Tile-Card with Config-Template-Card
+            heading_style: title
+            grid_options:
+              columns: full
+              rows: 1
+          - type: heading
+            icon: mdi:fridge
+            heading: Share
+            heading_style: subtitle
+            grid_options:
+              columns: 12
+              rows: auto
+          - type: heading
+            icon: mdi:fridge
+            heading: ExchangeRate
+            heading_style: subtitle
+            grid_options:
+              columns: 12
+              rows: 1
+          - type: custom:config-template-card
+            variables:
+              - states['sensor.us02079k3059_tgt_price']
+            entities:
+              - ${vars[0].entity_id}
+            card:
+              type: tile
+              entity: ${vars[0].entity_id}
+              features_position: bottom
+              name: |
+                '${(() => { 
+                  const a = vars[0].attributes || {}; 
+                  const name = a.name || '-'; 
+                  return `${name}`;
+                })()}
+              vertical: false
+              hide_state: false
+              show_entity_picture: false
+              icon: mdi:cash
+              features:
+                - type: trend-graph
+              tap_action:
+                action: call-service
+                service: script.isin_quotes_set_view_and_go
+                data:
+                  entity_id: ${vars[0].entity_id}
+                  path: /dashboard-finance/insight
+            grid_options:
+              columns: 12
+              rows: 2
+          - type: custom:config-template-card
+            variables:
+              - states['sensor.eu0009652759_fxr_price']
+            entities:
+              - ${vars[0].entity_id}
+            card:
+              type: tile
+              entity: ${vars[0].entity_id}
+              features_position: bottom
+              name: |
+                '${(() => { 
+                  const a = vars[0].attributes || {}; 
+                  const name = a.name || '-'; 
+                  return `${name}`;
+                })()}
+              vertical: false
+              hide_state: false
+              show_entity_picture: false
+              icon: mdi:cash
+              features:
+                - type: trend-graph
+              tap_action:
+                action: call-service
+                service: script.isin_quotes_set_view_and_go
+                data:
+                  entity_id: ${vars[0].entity_id}
+                  path: /dashboard-finance/insight
+            grid_options:
+              columns: 12
+              rows: 2
+          - type: heading
+            icon: mdi:fridge
+            heading: Funds
+            heading_style: subtitle
+            grid_options:
+              columns: 12
+              rows: 1
+          - type: heading
+            icon: mdi:fridge
+            heading: Commodity
+            heading_style: subtitle
+            grid_options:
+              columns: 12
+              rows: 1
+          - type: custom:config-template-card
+            variables:
+              - states['sensor.lu0302296495_bmn_price']
+            entities:
+              - ${vars[0].entity_id}
+            card:
+              type: tile
+              entity: ${vars[0].entity_id}
+              features_position: bottom
+              name: |
+                '${(() => { 
+                  const a = vars[0].attributes || {}; 
+                  const name = a.name || '-'; 
+                  return `${name}`;
+                })()}
+              vertical: false
+              hide_state: false
+              show_entity_picture: false
+              icon: mdi:cash
+              features:
+                - type: trend-graph
+              tap_action:
+                action: call-service
+                service: script.isin_quotes_set_view_and_go
+                data:
+                  entity_id: ${vars[0].entity_id}
+                  path: /dashboard-finance/insight
+            grid_options:
+              columns: 12
+              rows: 2
+          - type: custom:config-template-card
+            variables:
+              - states['sensor.xc0009677409_lsd_price']
+            entities:
+              - ${vars[0].entity_id}
+            card:
+              type: tile
+              entity: ${vars[0].entity_id}
+              features_position: bottom
+              name: |
+                '${(() => { 
+                  const a = vars[0].attributes || {}; 
+                  const name = a.name || '-'; 
+                  return `${name}`;
+                })()}
+              vertical: false
+              hide_state: false
+              show_entity_picture: false
+              icon: mdi:cash
+              features:
+                - type: trend-graph
+              tap_action:
+                action: call-service
+                service: script.isin_quotes_set_view_and_go
+                data:
+                  entity_id: ${vars[0].entity_id}
+                  path: /dashboard-finance/insight
+            grid_options:
+              columns: 12
+              rows: 2
+          - type: heading
+            icon: mdi:fridge
+            heading: Bonds
+            heading_style: subtitle
+            grid_options:
+              columns: 12
+              rows: 1
+          - type: heading
+            icon: mdi:fridge
+            heading: Derivative
+            heading_style: subtitle
+            grid_options:
+              columns: 12
+              rows: 1
+          - type: custom:config-template-card
+            variables:
+              - states['sensor.de000a2lqrg8_haj_price']
+            entities:
+              - ${vars[0].entity_id}
+            card:
+              type: tile
+              entity: ${vars[0].entity_id}
+              features_position: bottom
+              name: |
+                '${(() => { 
+                  const a = vars[0].attributes || {}; 
+                  const name = a.name || '-'; 
+                  return `${name}`;
+                })()}
+              vertical: false
+              hide_state: false
+              show_entity_picture: false
+              icon: mdi:cash
+              features:
+                - type: trend-graph
+              tap_action:
+                action: call-service
+                service: script.isin_quotes_set_view_and_go
+                data:
+                  entity_id: ${vars[0].entity_id}
+                  path: /dashboard-finance/insight
+            grid_options:
+              columns: 12
+              rows: 2
+          - type: custom:config-template-card
+            variables:
+              - states['sensor.de000lb55hz6_bfz_price']
+            entities:
+              - ${vars[0].entity_id}
+            card:
+              type: tile
+              entity: ${vars[0].entity_id}
+              features_position: bottom
+              name: |
+                '${(() => { 
+                  const a = vars[0].attributes || {}; 
+                  const name = a.name || '-'; 
+                  return `${name}`;
+                })()}
+              vertical: false
+              hide_state: false
+              show_entity_picture: false
+              icon: mdi:cash
+              features:
+                - type: trend-graph
+              tap_action:
+                action: call-service
+                service: script.isin_quotes_set_view_and_go
+                data:
+                  entity_id: ${vars[0].entity_id}
+                  path: /dashboard-finance/insight
+            grid_options:
+              columns: 12
+              rows: 2
+        column_span: 2
+  - type: sections
+    max_columns: 3
+    title: Insight
+    path: insight
+    sections:
+      - type: grid
+        cards:
+          - type: conditional
+            conditions:
+              - entity: input_boolean.view_ohlc
+                state: 'off'
+            card:
+              type: custom:config-template-card
+              entities:
+                - sensor.isin_quotes_history
+              card:
+                type: custom:apexcharts-card
+                header:
+                  show: true
+                  title: |
+                    '${(() => {
+                      const s = (id) => states[id]?.state;
+                      const name = s('input_text.view_name') || '—';
+                      const isin = (s('input_text.view_isin') || '—').toUpperCase();
+                      const tr   = s('input_select.view_time_range') || 'OneWeek';
+                      return `${name} · ${isin} · ${tr}`;
+                    })()}
+                graph_span: |
+                  '${(() => {
+                    const tr = states['input_select.view_time_range']?.state || 'OneWeek';
+                    const map = {
+                      Intraday: '12h',
+                      OneWeek: '7d',
+                      OneMonth: '30d',
+                      OneYear: '1y',
+                      FiveYears: '5y',
+                      Maximum: '3650d',
+                    };
+                    return map[tr] ?? '3650d';
+                  })()}
+                series:
+                  - entity: sensor.isin_quotes_history
+                    name: Close/Price
+                    type: line
+                    data_generator: |
+                      const a = entity?.attributes || {};
+                      const inst = a.instruments?.[0];
+                      if (!inst) return [];
+                      const k = Array.isArray(inst.keys) ? inst.keys : [];
+                      const d = Array.isArray(inst.data) ? inst.data : [];
+                      const iX = k.indexOf('x');
+                      const iY = k.indexOf('y');
+                      if (iX < 0 || iY < 0) return [];
+                      return d
+                        .filter(p => Array.isArray(p))
+                        .map(p => {
+                          const ts = Number(p[iX]);
+                          const val = Number(p[iY]);
+                          if (!Number.isFinite(ts) || !Number.isFinite(val)) return null;
+                          return [ts, val];
+                        })
+                        .filter(Boolean);
+                apex_config:
+                  xaxis:
+                    type: datetime
+                  yaxis:
+                    decimalsInFloat: 2
+                    forceNiceScale: true
+                  stroke:
+                    width: 2
+                  markers:
+                    size: 0
+            grid_options:
+              columns: full
+          - type: conditional
+            conditions:
+              - entity: input_boolean.view_ohlc
+                state: 'on'
+            card:
+              type: custom:plotly-graph
+              entities:
+                - entity: sensor.isin_quotes_history
+                  raw_plotly_config: true
+                  type: candlestick
+                  fn: >
+                    $ex console.log('[isin_quotes][plotly-graph] attributes:',
+                    meta)
+                  x: |
+                    $fn ({ meta }) => {
+                      const truthy = v => v === true || v === 'true' || v === 1 || v === '1';
+                      const ohlcActive = truthy(meta?.meta?.ohlc) || truthy(meta?.ohlc);
+                      if (!ohlcActive) return []; // nur OHLC-Fall
+                      let source = null;
+                      if (Array.isArray(meta?.keys) && Array.isArray(meta?.data)) {
+                        source = { keys: meta.keys, data: meta.data };
+                      } else if (Array.isArray(meta?.instruments?.[0]?.keys) && Array.isArray(meta?.instruments?.[0]?.data)) {
+                        source = meta.instruments[0];
+                      } else {
+                        console.error('[isin_quotes][plotly-graph] keine keys/data Struktur gefunden.');
+                        return [];
+                      }
+                      const rows = source.data.map(r => Object.fromEntries(source.keys.map((k,i)=>[k, r[i]])));
+                      console.log('[isin_quotes][plotly-graph] rows sample:', rows.slice(0,3));
+                      const normTime = t => {
+                        const n = Number(t);
+                        return Number.isFinite(n) ? (n < 1e11 ? n*1000 : n) : NaN; // Sekunden→ms, falls nötig
+                      };
+                      return rows.map(r => new Date(normTime(r.x))).filter(v => Number.isFinite(v.getTime()));
+                    }
+                  open: |
+                    $fn ({ meta }) => {
+                      let src = Array.isArray(meta?.keys) ? {keys: meta.keys, data: meta.data} : meta?.instruments?.[0];
+                      if (!src) return [];
+                      const rows = src.data.map(r => Object.fromEntries(src.keys.map((k,i)=>[k, r[i]])));
+                      return rows.map(r => Number(r.open)).filter(Number.isFinite);
+                    }
+                  high: |
+                    $fn ({ meta }) => {
+                      let src = Array.isArray(meta?.keys) ? {keys: meta.keys, data: meta.data} : meta?.instruments?.[0];
+                      if (!src) return [];
+                      const rows = src.data.map(r => Object.fromEntries(src.keys.map((k,i)=>[k, r[i]])));
+                      return rows.map(r => Number(r.high)).filter(Number.isFinite);
+                    }
+                  low: |
+                    $fn ({ meta }) => {
+                      let src = Array.isArray(meta?.keys) ? {keys: meta.keys, data: meta.data} : meta?.instruments?.[0];
+                      if (!src) return [];
+                      const rows = src.data.map(r => Object.fromEntries(src.keys.map((k,i)=>[k, r[i]])));
+                      return rows.map(r => Number(r.low)).filter(Number.isFinite);
+                    }
+                  close: |
+                    $fn ({ meta }) => {
+                      let src = Array.isArray(meta?.keys) ? {keys: meta.keys, data: meta.data} : meta?.instruments?.[0];
+                      if (!src) return [];
+                      const rows = src.data.map(r => Object.fromEntries(src.keys.map((k,i)=>[k, r[i]])));
+                      const vals = rows.map(r => Number(r.close)).filter(Number.isFinite);
+                      console.log('[isin_quotes][plotly-graph] counts:', { total: rows.length, clean: vals.length });
+                      return vals;
+                    }
+                  name: $ex (meta?.meta?.isin || 'OHLC')
+              layout:
+                height: 600
+                margin:
+                  l: 40
+                  r: 10
+                  t: 40
+                  b: 40
+                xaxis:
+                  type: date
+                  rangeslider:
+                    visible: false
+                  autorange: false
+                  range: |
+                    $ex {
+                      const a = hass.states['sensor.isin_quotes_history']?.attributes || {};
+                      const truthy = v => v===true || v==='true' || v===1 || v==='1';
+                      if (!(truthy(a?.meta?.ohlc) || truthy(a?.ohlc))) return undefined;
+                      const src = Array.isArray(a.keys) ? {keys:a.keys, data:a.data} : a.instruments?.[0];
+                      if (!src?.keys || !src?.data) return undefined;
+                      const rows = src.data.map(r => Object.fromEntries(src.keys.map((k,i)=>[k,r[i]])));
+                      const normT = t => { const n=Number(t); return Number.isFinite(n) ? (n<1e11 ? n*1000 : n) : NaN; };
+                      const x = rows.map(r => normT(r.x)).filter(Number.isFinite);
+                      if (!x.length) return undefined;
+                      return [new Date(Math.min(...x)), new Date(Math.max(...x))];
+                    }
+                yaxis:
+                  fixedrange: false
+                  autorange: false
+                  range: |
+                    $ex {
+                      const a = hass.states['sensor.isin_quotes_history']?.attributes || {};
+                      const src = Array.isArray(a.keys) ? {keys:a.keys, data:a.data} : a.instruments?.[0];
+                      if (!src?.keys || !src?.data) return undefined;
+                      const rows = src.data.map(r => Object.fromEntries(src.keys.map((k,i)=>[k,r[i]])));
+                      const lows  = rows.map(r => Number(r.low)).filter(Number.isFinite);
+                      const highs = rows.map(r => Number(r.high)).filter(Number.isFinite);
+                      if (!lows.length || !highs.length) return undefined;
+                      const min = Math.min(...lows), max = Math.max(...highs);
+                      const pad = (max - min) * 0.2;
+                      return [min - pad, max + pad];
+                    }
+                uirevision: init
+              title: |
+                $ex {
+                  const m = hass.states['sensor.isin_quotes_history']?.attributes?.meta || {};
+                  const name = hass.states['input_text.view_name']?.state || '';
+                  const isin = (m.isin).toUpperCase();
+                  return `${name || '—'} · ${isin ?? '—'} · ${m.time_range || '—'}`;
+                }
+              refresh_interval: auto
+            grid_options:
+              columns: full
+        column_span: 2
+      - type: grid
+        cards:
+          - type: entities
+            entities:
+              - entity: input_select.view_time_range
+                name: Zeitraum wählen
+              - entity: input_boolean.view_ohlc
+                name: Open, High, Low, Close anzeigen
+          - type: tile
+            entity: input_text.view_name
+            features_position: bottom
+            vertical: false
+            grid_options:
+              columns: 12
+              rows: 1
+            name: Name
+          - type: tile
+            entity: input_text.view_isin
+            features_position: bottom
+            vertical: false
+            name: ISIN
+          - type: tile
+            entity: sensor.isin_quotes_history
+            features_position: bottom
+            vertical: false
+            name: Data Points
+          - type: tile
+            entity: input_number.view_exchange_id
+            features_position: bottom
+            vertical: false
+            name: Exchange ID
+          - type: tile
+            features_position: bottom
+            vertical: false
+            entity: input_number.view_currency_id
+            name: Currency ID
+        column_span: 1
+    cards: []
+    subview: true
