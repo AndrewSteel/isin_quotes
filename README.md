@@ -91,11 +91,11 @@ Functions for managing portfolios.
 
 ## Lovelace Examples
 
-## Example: Visualization with ApexCharts Card
+### Example: Visualization with ApexCharts Card
 
 You can visualize the 24h history of a sensor using the [ApexCharts Card](https://github.com/RomRider/apexcharts-card) (installable via HACS).
 
-![apexcharts-card][https://github.com/AndrewSteel/isin_quotes/images/apexcharts-card]
+![apexcharts-card](docs/apexcharts-card.png)
 
 Example YAML:
 
@@ -121,11 +121,11 @@ apex_config:
       format: 'dd.MM HH:mm'
 ```
 
-## Example: visualization with Plotly Graph Card
+### Example: visualization with Plotly Graph Card
 
 The [Plotly Graph Card](https://github.com/dbuezas/lovelace-plotly-graph-card) can also be installed via HACS and used to render interactive charts.
 
-![Plotly Graph Card][https://github.com/AndrewSteel/isin_quotes/images/plotly-graph.png]
+![Plotly Graph Card](docs/plotly-graph.png)
 
 Example YAML for a 24h price line:
 
@@ -153,24 +153,25 @@ traces:
 
 For a richer dashboard experience, you can combine **current price data** with the ability to dive deeper into **historical charts**.
 
-* The **Home view** shows a compact overview of all configured ISINs and their current prices.
+The **Home view** shows a compact overview of all configured ISINs and their current prices.
 
-![config-template-card][https://github.com/AndrewSteel/isin_quotes/images/config-template-card.png]
+![config-template-card](docs/config-template-card.png)
 
-* The **Insight view** focuses on a selected ISIN and allows you to analyze its historical performance using the `isin_quotes.fetch_history` service:
+The **Insight view** focuses on a selected ISIN and allows you to analyze its historical performance using the `isin_quotes.fetch_history` service:
   
 price only ...
 
-![historical-insight-price][https://github.com/AndrewSteel/isin_quotes/images/historical-insight-price.png]
+![historical-insight-price](docs/historical-insight-price.png)
 
 ... or OHLC - open, high, low, close.
 
-![historical-insight-ohlc][https://github.com/AndrewSteel/isin_quotes/images/historical-insight-ohlc.png]
+![historical-insight-ohlc](docs/historical-insight-ohlc.png)
 
-* Navigation between views can be automated using the included scripts and helpers.
-* The **helpers** (`input_number.view_currency_id`, `input_number.view_exchange_id`, `input_text.view_isin`, `input_text.view_name`, `input_boolean.view_ohlc`, `input_select.view_time_range`) manage the context for fetching and displaying the data.
+Navigation between views can be automated using the included scripts and helpers.
 
-Insert this into the (`configuration.yaml`) or create appropriate helpers:
+The **helpers** `input_number.view_currency_id`, `input_number.view_exchange_id`, `input_text.view_isin`, `input_text.view_name`, `input_boolean.view_ohlc`, `input_select.view_time_range` manage the context for fetching and displaying the data.
+
+Insert this into the `configuration.yaml` or create appropriate helpers:
 
 ```yaml
 input_number:
@@ -212,7 +213,7 @@ input_select:
     initial: OneMonth
 ```
 
-* The **scripts** (`script.isin_quotes_fetch_current_view`,
+The **scripts** `script.isin_quotes_fetch_current_view`
 
 ```yaml
 alias: isin_quotes_fetch_current_view
@@ -235,7 +236,7 @@ sequence:
 description: ""
 ```
 
-* `script.isin_quotes_set_view_and_go`)
+`script.isin_quotes_set_view_and_go`
 
 ```yaml
 alias: isin_quotes_set_view_and_go
@@ -308,8 +309,9 @@ sequence:
 description: ""
 ```
 
-* handle fetching historical data and navigating to the correct view.
-* The **automations** (`isin_quotes_autofetch_source_paramas`)
+handle fetching historical data and navigating to the correct view.
+
+The **automations** `isin_quotes_autofetch_source_paramas`
 
 ```yaml
 alias: isin_quotes_autofetch_source_params
@@ -325,7 +327,7 @@ actions:
 mode: restart
 ```
 
-(`isin_quotes_autofetch_time_range`)
+`isin_quotes_autofetch_time_range`
 
 ```yaml
 alias: isin_quotes_autofetch_time_range
@@ -338,7 +340,7 @@ actions:
 mode: restart
 ```
 
-and (`ison_quotes_autofetch_ohlc`)
+and `ison_quotes_autofetch_ohlc`
 
 ```yaml
 alias: isin_quotes_autofetch_ohlc
@@ -353,4 +355,4 @@ mode: restart
 
 ensure that whenever the user changes parameters (ISIN, time range, OHLC mode), the historical data is automatically refreshed.
 
-This [setup][https://github.com/AndrewSteel/isin_quotes/examples/finance-view.yaml] enables seamless switching between securities and time ranges, ensuring that both high-level overviews and detailed insights are always up to date.
+This [setup](examples/finance-view.yaml) enables seamless switching between securities and time ranges, ensuring that both high-level overviews and detailed insights are always up to date.
