@@ -96,15 +96,13 @@ class _BaseIsinEntity(CoordinatorEntity[QuotesCoordinator], SensorEntity):
         self._exchange_name = entry.data.get(CONF_EXCHANGE_NAME)
         self._currency_sign = entry.data.get(CONF_CURRENCY_SIGN)
         self._currency_name = entry.data.get(CONF_CURRENCY_NAME)
-        # exchanges kann in entry fehlen - versuche Coordinator, sonst leere Liste
+
         exchanges = entry.data.get("exchanges")
         if not exchanges:
-            # coordinator.data kann beim ersten Start ebenfalls leer sein – daher "or []"
             exchanges = (getattr(coordinator, "data", None) or {}).get(
                 "exchanges"
             ) or []
 
-        # Hilfsfunktion für sichere Suche
         def find_first(
             items: Iterable[Mapping[str, Any]],
             match_key: str,
@@ -116,7 +114,6 @@ class _BaseIsinEntity(CoordinatorEntity[QuotesCoordinator], SensorEntity):
                     return it.get(return_key)
             return None
 
-        # Nur suchen, wenn Schlüssel vorhanden - sonst bleibt None
         self._currency_id = (
             find_first(exchanges, "currencySymbol", self._currency_sign, "currencyId")
             if self._currency_sign
@@ -128,17 +125,18 @@ class _BaseIsinEntity(CoordinatorEntity[QuotesCoordinator], SensorEntity):
             else None
         )
 
-        # Optional: Loggen, falls nicht gefunden – hilft beim Debuggen in HA
         if self._exchange_code and self._exchange_id is None:
             _LOGGER.debug(
-                "No exchangeId found for exchangeCode=%s (isin=%s). Exchanges present: %s",
+                "No exchangeId found for exchangeCode=%s (isin=%s). "
+                "Exchanges present: %s",
                 self._exchange_code,
                 self._isin,
                 [e.get("exchangeCode") for e in exchanges],
             )
         if self._currency_sign and self._currency_id is None:
             _LOGGER.debug(
-                "No currencyId found for currencySymbol=%s (isin=%s). Symbols present: %s",
+                "No currencyId found for currencySymbol=%s (isin=%s). "
+                "Symbols present: %s",
                 self._currency_sign,
                 self._isin,
                 [e.get("currencySymbol") for e in exchanges],
